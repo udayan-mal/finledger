@@ -4,6 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
+import AddEntryModal from "./AddEntryModal";
 
 const navGroups = [
   {
@@ -201,6 +202,9 @@ export default function AppShell({ children }) {
   // Controls desktop sidebar expanded/mini state
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(true);
 
+  // Controls Global Quick Add Modal
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+
   return (
     <>
       {/* ─── Desktop Sidebar ─── */}
@@ -390,7 +394,21 @@ export default function AppShell({ children }) {
               />
             </div>
           </div>
-          <div className="flex items-center gap-6">
+          <div className="flex items-center gap-4 md:gap-6">
+            <button 
+              onClick={() => setIsAddModalOpen(true)}
+              className="hidden md:flex items-center gap-2 px-5 py-2.5 bg-[#C9A84C] text-[#0d0d1a] hover:bg-[#d4b55b] rounded-lg font-mono text-xs uppercase tracking-widest font-bold shadow-[0_4px_14px_0_rgba(201,168,76,0.39)] transition-all transform hover:-translate-y-0.5"
+            >
+              <span className="material-symbols-outlined text-[18px]">add</span>
+              Quick Add
+            </button>
+            <button 
+              onClick={() => setIsAddModalOpen(true)}
+              className="md:hidden text-[#C9A84C] hover:text-[#d4b55b] transition-colors w-10 h-10 flex items-center justify-center bg-[#C9A84C]/10 rounded-full"
+            >
+               <span className="material-symbols-outlined text-[20px]">add</span>
+            </button>
+
             <button className="relative material-symbols-outlined text-on-surface-variant hover:text-tertiary transition-colors">
               notifications
               {/* Notification dot */}
@@ -476,6 +494,12 @@ export default function AppShell({ children }) {
           );
         })}
       </nav>
+
+      <AddEntryModal 
+        isOpen={isAddModalOpen} 
+        onClose={() => setIsAddModalOpen(false)}
+        onSuccess={() => window.location.reload()} // Quick hack to refresh data for MVP
+      />
     </>
   );
 }
