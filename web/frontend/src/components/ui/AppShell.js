@@ -5,19 +5,49 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 
-const navItems = [
-  { href: "/dashboard", icon: "dashboard", label: "Dashboard" },
-  { href: "/transactions", icon: "receipt_long", label: "Transactions" },
-  { href: "/stocks", icon: "monitoring", label: "Stocks" },
-  { href: "/mutual-funds", icon: "account_balance", label: "Mutual Funds" },
-  { href: "/expenses", icon: "payments", label: "Expenses" },
-  { href: "/budgets", icon: "account_balance_wallet", label: "Budgets" },
-  { href: "/reports", icon: "query_stats", label: "Reports" },
-  { href: "/net-worth", icon: "trending_up", label: "Net Worth" },
-  { href: "/goals", icon: "savings", label: "Goals" },
-  { href: "/accounts", icon: "credit_card", label: "Accounts" },
-  { href: "/advisor", icon: "auto_awesome", label: "AI Advisor" },
-  { href: "/recurring", icon: "event_repeat", label: "Recurring" }
+const navGroups = [
+  {
+    title: "Overview",
+    items: [
+      { href: "/dashboard", icon: "dashboard", label: "Dashboard" },
+      { href: "/net-worth", icon: "trending_up", label: "Net Worth" }
+    ]
+  },
+  {
+    title: "Transactions",
+    items: [
+      { href: "/transactions", icon: "receipt_long", label: "All Transactions" }
+    ]
+  },
+  {
+    title: "Investments",
+    items: [
+      { href: "/stocks", icon: "monitoring", label: "Stock Market" },
+      { href: "/mutual-funds", icon: "account_balance", label: "Mutual Funds" }
+    ]
+  },
+  {
+    title: "Expenses",
+    items: [
+      { href: "/expenses", icon: "payments", label: "Expenses" },
+      { href: "/budgets", icon: "account_balance_wallet", label: "Budget Planner" },
+      { href: "/recurring", icon: "event_repeat", label: "Recurring" }
+    ]
+  },
+  {
+    title: "Insights",
+    items: [
+      { href: "/reports", icon: "query_stats", label: "Reports" },
+      { href: "/advisor", icon: "auto_awesome", label: "AI Advisor" }
+    ]
+  },
+  {
+    title: "Assets & Planning",
+    items: [
+      { href: "/accounts", icon: "credit_card", label: "Accounts" },
+      { href: "/goals", icon: "savings", label: "Goals & Savings" }
+    ]
+  }
 ];
 
 const mobileNavItems = [
@@ -66,18 +96,17 @@ function NavLink({ item, pathname, onClick, isExpanded = true }) {
     <Link
       href={item.href}
       onClick={onClick}
-      // Group makes icon hover states work even when collapsing
-      className={`group flex items-center py-3.5 transition-all duration-300 ${
+      className={`group flex items-center py-2.5 transition-all duration-300 ${
         isExpanded ? "px-8 gap-4" : "justify-center px-0 gap-0 relative"
       } ${
         active
-          ? "text-[#C9A84C] bg-gradient-to-r from-[#C9A84C]/10 to-transparent border-r-2 border-[#C9A84C]"
+          ? "text-[#C9A84C] relative before:absolute before:inset-y-0 before:right-0 before:w-[2px] before:bg-tertiary bg-gradient-to-r from-transparent to-[#C9A84C]/10"
           : "text-[#F1F0EC]/40 hover:text-[#F1F0EC] hover:bg-[#1a1a28]"
       }`}
     >
       <span
         className={`material-symbols-outlined transition-all duration-300 ${
-          isExpanded ? "text-[20px]" : "text-[24px]"
+          isExpanded ? "text-[20px]" : "text-[22px]"
         }`}
         style={
           active
@@ -94,7 +123,7 @@ function NavLink({ item, pathname, onClick, isExpanded = true }) {
       {/* Label - fades out and shrinks width when collapsed */}
       <span
         className={`font-mono text-xs uppercase tracking-widest whitespace-nowrap overflow-hidden transition-all duration-300 ease-in-out ${
-          isExpanded ? "opacity-100 max-w-[150px] ml-0" : "opacity-0 max-w-0 ml-0 hidden md:block" // Hidden to prevent layout shift when fully collapsed
+          isExpanded ? "opacity-100 max-w-[150px] ml-0" : "opacity-0 max-w-0 ml-0 hidden md:block" 
         }`}
       >
         {item.label}
@@ -107,6 +136,58 @@ function NavLink({ item, pathname, onClick, isExpanded = true }) {
         </div>
       )}
     </Link>
+  );
+}
+
+// ──────────────────────────────────────────────
+// Financial Health Widget
+// ──────────────────────────────────────────────
+function FinancialHealthWidget({ isExpanded }) {
+  return (
+    <div className={`mt-auto transition-all duration-300 mb-2 ${isExpanded ? "px-6" : "px-0 flex justify-center"}`}>
+      <div 
+        className={`relative overflow-hidden rounded-xl border border-tertiary/20 group transition-all duration-300 ${
+          isExpanded 
+            ? "p-4 bg-gradient-to-br from-[#C9A84C]/5 to-transparent w-full" 
+            : "p-2 w-10 bg-surface-container flex flex-col items-center cursor-pointer hover:bg-surface-container-highest"
+        }`}
+      >
+        {/* Subtle background glow effect if good standing */}
+        {isExpanded && (
+          <div className="absolute -top-10 -right-10 w-24 h-24 bg-green-500/10 rounded-full blur-2xl pointer-events-none" />
+        )}
+
+        <div className={`flex items-center ${isExpanded ? "gap-3" : "justify-center"}`}>
+          <div className={`flex items-center justify-center flex-shrink-0 rounded-lg ${isExpanded ? "w-10 h-10 bg-surface-container border border-outline-variant/20" : "w-6 h-6"}`}>
+            <span className={`material-symbols-outlined transition-colors duration-300 ${isExpanded ? "text-tertiary text-xl" : "text-tertiary group-hover:text-tertiary-container"}`}>
+              verified_user
+            </span>
+          </div>
+          
+          {/* Detailed text (only shown when expanded) */}
+          <div 
+            className={`transition-all duration-300 overflow-hidden whitespace-nowrap ${
+              isExpanded ? "opacity-100 max-w-full w-auto block" : "opacity-0 w-0 max-w-0 hidden md:hidden"
+            }`}
+          >
+            <p className="font-mono text-[9px] uppercase tracking-widest text-on-surface-variant/60 mb-0.5">
+              Financial Health
+            </p>
+            <div className="flex items-baseline gap-1.5">
+              <span className="font-headline text-xl text-on-surface font-bold leading-none">15</span>
+              <span className="text-[10px] text-green-400 uppercase font-mono tracking-wider font-bold">Good Standing</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Tooltip for mini mode */}
+        {!isExpanded && (
+          <div className="absolute left-16 bg-[#1a1a28] text-[#F1F0EC] px-3 py-1.5 rounded-md font-mono text-[10px] uppercase tracking-widest opacity-0 scale-95 pointer-events-none group-hover:opacity-100 group-hover:scale-100 transition-all duration-200 z-50 whitespace-nowrap shadow-xl border border-outline-variant/10">
+            Health: 15 (Good)
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -124,12 +205,12 @@ export default function AppShell({ children }) {
     <>
       {/* ─── Desktop Sidebar ─── */}
       <aside 
-        className={`hidden md:flex flex-col py-8 gap-y-6 h-screen left-0 top-0 fixed bg-[#0d0d1a] z-50 transition-all duration-300 ease-in-out shadow-2xl ${
+        className={`hidden md:flex flex-col py-6 gap-y-2 h-screen left-0 top-0 fixed bg-[#0d0d1a] z-50 transition-all duration-300 ease-in-out shadow-2xl overflow-hidden ${
           isSidebarExpanded ? "w-72" : "w-20"
         }`}
       >
         <div 
-          className={`flex items-center mb-4 transition-all duration-300 h-10 ${
+          className={`flex items-center mb-6 transition-all duration-300 h-10 ${
             isSidebarExpanded ? "px-8 gap-3" : "px-0 justify-center flex-col gap-0"
           }`}
         >
@@ -145,7 +226,7 @@ export default function AppShell({ children }) {
           />
           <div 
             className={`transition-all duration-300 overflow-hidden whitespace-nowrap ${
-              isSidebarExpanded ? "opacity-100 w-auto" : "opacity-0 w-0 h-0"
+              isSidebarExpanded ? "opacity-100 w-auto" : "opacity-0 w-0 h-0 hidden"
             }`}
           >
             <h1 className="text-xl font-headline text-tertiary-container">
@@ -157,21 +238,43 @@ export default function AppShell({ children }) {
           </div>
         </div>
 
-        <nav className="flex flex-col flex-grow overflow-y-auto no-scrollbar">
-          {navItems.map((item) => (
-            <NavLink 
-              key={item.href} 
-              item={item} 
-              pathname={pathname} 
-              isExpanded={isSidebarExpanded} 
-            />
-          ))}
-          <div className="mt-auto pt-4 border-t border-outline-variant/5">
-            <NavLink
-              item={{ href: "/settings", icon: "settings", label: "Settings" }}
-              pathname={pathname}
-              isExpanded={isSidebarExpanded}
-            />
+        <nav className="flex flex-col flex-grow overflow-y-auto no-scrollbar pb-6 gap-6">
+          <div className="flex flex-col gap-y-5">
+            {navGroups.map((group, groupIdx) => (
+              <div key={groupIdx} className="flex flex-col gap-1.5">
+                {/* Group Title */}
+                <div 
+                  className={`transition-all duration-300 overflow-hidden ${
+                    isSidebarExpanded ? "opacity-100 max-h-10 px-8" : "opacity-0 max-h-0 px-0 m-0"
+                  }`}
+                >
+                  <p className="font-mono text-[9px] uppercase tracking-widest text-on-surface-variant/40 mt-1">
+                    {group.title}
+                  </p>
+                </div>
+                {/* Group Items */}
+                <div className="flex flex-col gap-0.5">
+                  {group.items.map((item) => (
+                    <NavLink 
+                      key={item.href} 
+                      item={item} 
+                      pathname={pathname} 
+                      isExpanded={isSidebarExpanded} 
+                    />
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+          
+          <FinancialHealthWidget isExpanded={isSidebarExpanded} />
+
+          <div className={`mt-0 border-t border-outline-variant/10 pt-4 ${isSidebarExpanded ? "px-4" : "px-0"}`}>
+             <NavLink
+                item={{ href: "/settings", icon: "settings", label: "Settings" }}
+                pathname={pathname}
+                isExpanded={isSidebarExpanded}
+              />
           </div>
         </nav>
       </aside>
@@ -183,7 +286,7 @@ export default function AppShell({ children }) {
             className="fixed inset-0 z-40 bg-black/60 md:hidden backdrop-blur-sm transition-opacity"
             onClick={() => setMobileMenuOpen(false)}
           />
-          <aside className="fixed left-0 top-0 z-50 flex h-screen w-[80%] max-w-[300px] flex-col bg-[#0d0d1a] py-5 md:hidden shadow-2xl animate-in slide-in-from-left">
+          <aside className="fixed left-0 top-0 z-50 flex h-screen w-[85%] max-w-[320px] flex-col bg-[#0d0d1a] py-5 md:hidden shadow-2xl animate-in slide-in-from-left">
             <div className="mb-4 flex justify-between items-center px-8 border-b border-outline-variant/10 pb-4">
               <div className="flex items-center gap-3">
                 <Image
@@ -204,17 +307,31 @@ export default function AppShell({ children }) {
                 <span className="material-symbols-outlined">close</span>
               </button>
             </div>
-            <nav className="flex flex-col flex-grow overflow-y-auto pt-2">
-              {navItems.map((item) => (
-                <NavLink
-                  key={item.href}
-                  item={item}
-                  pathname={pathname}
-                  onClick={() => setMobileMenuOpen(false)}
-                  isExpanded={true}
-                />
-              ))}
-              <div className="mt-auto">
+            <nav className="flex flex-col flex-grow overflow-y-auto no-scrollbar pt-2 gap-4 pb-6">
+              <div className="flex flex-col gap-y-4">
+                {navGroups.map((group, groupIdx) => (
+                  <div key={groupIdx} className="flex flex-col gap-1">
+                    <p className="font-mono text-[9px] uppercase tracking-widest text-on-surface-variant/40 px-8 py-1">
+                      {group.title}
+                    </p>
+                    <div className="flex flex-col">
+                      {group.items.map((item) => (
+                        <NavLink
+                          key={item.href}
+                          item={item}
+                          pathname={pathname}
+                          onClick={() => setMobileMenuOpen(false)}
+                          isExpanded={true}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <FinancialHealthWidget isExpanded={true} />
+
+              <div className="mt-0 border-t border-outline-variant/10 pt-4 px-4">
                 <NavLink
                   item={{
                     href: "/settings",
