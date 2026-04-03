@@ -1,9 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { api } from "@/lib/api";
 
 const TAB_OPTIONS = ["Transaction", "Stock Trade", "Mutual Fund"];
+
+const DEFAULT_EXPENSE_CATEGORIES = [
+  "Food & Dining", "Travel", "Entertainment", "Shopping", "Medical", 
+  "Utilities", "Education", "EMI / Loan", "Fuel", "Groceries", 
+  "Clothing", "Electronics", "Insurance", "Rent", "Other Expense"
+];
+
+const DEFAULT_INCOME_CATEGORIES = ["Salary", "Business", "Freelance", "Investment", "Other Income"];
 
 export default function AddEntryModal({ isOpen, onClose, onSuccess }) {
   const [activeTab, setActiveTab] = useState("Transaction");
@@ -16,7 +24,14 @@ export default function AddEntryModal({ isOpen, onClose, onSuccess }) {
   // Transaction specific state
   const [txnType, setTxnType] = useState("EXPENSE");
   const [amount, setAmount] = useState("");
-  const [note, setNote] = useState("");
+  const [description, setDescription] = useState("");
+  
+  // Database References
+  const [accounts, setAccounts] = useState([]);
+  const [categories, setCategories] = useState([]);
+  
+  const [selectedAccountId, setSelectedAccountId] = useState("");
+  const [selectedCategoryName, setSelectedCategoryName] = useState("Food & Dining");
 
   // Stock Trade specific state
   const [stockSymbol, setStockSymbol] = useState("");
@@ -30,7 +45,26 @@ export default function AddEntryModal({ isOpen, onClose, onSuccess }) {
   const [fundNav, setFundNav] = useState("");
   const [fundType, setFundType] = useState("SIP");
 
+  useEffect(() => {
+    if (isOpen) {
+      // Fetch user's existing accounts and categories
+      Promise.all([
+        api.get("/accounts").catch(() => ({ data: [] })),
+        api.get("/categories").catch(() => ({ data: [] }))
+      ]).then(([accRes, catRes]) => {
+        setAccounts(accRes.data);
+        setCategories(catRes.data);
+        if (accRes.data.length > 0) {
+          setSelectedAccountId(accRes.data[0].id);
+        }
+      });
+    }
+  }, [isOpen]);
+
   if (!isOpen) return null;
+
+  // Dynamically switch category dropdown based on Expense vs Income
+  const categoryOptions = txnType === "EXPENSE" ? DEFAULT_EXPENSE_CATEGORIES : DEFAULT_INCOME_CATEGORIES;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -40,18 +74,45 @@ export default function AddEntryModal({ isOpen, onClose, onSuccess }) {
     try {
       if (activeTab === "Transaction") {
         if (!amount || isNaN(amount)) throw new Error("Invalid amount");
-        // Convert to paise safely
         const amountPaise = Math.round(parseFloat(amount) * 100);
 
+        // 1. Ensure we have an account to post to
+        let finalAccountId = selectedAccountId;
+        if (!finalAccountId) {
+          // Auto-create a default wallet if user has absolutely no accounts
+          const newAcc = await api.post("/accounts", {
+            name: "Main Wallet",
+            type: "WALLET",
+            balancePaise: 0
+          });
+          finalAccountId = newAcc.data.id;
+        }
+
+        // 2. Ensure we have a valid associated Category ID
+        let categoryId = null;
+        if (selectedCategoryName) {
+          let cat = categories.find(c => c.name === selectedCategoryName && c.type === txnType);
+          if (!cat) {
+            // Auto-create category in backend if it doesn't physically exist for this user yet
+            const newCat = await api.post("/categories", {
+              name: selectedCategoryName,
+              type: txnType
+            });
+            cat = newCat.data;
+          }
+          categoryId = cat.id;
+        }
+
+        // 3. Post Transaction
         await api.post("/transactions", {
-          // Hardcoding standard categories/accounts for MVP logic to avoid blocking users
-          accountId: "00000000-0000-0000-0000-000000000000",
-          categoryId: "00000000-0000-0000-0000-000000000000",
+          accountId: finalAccountId,
+          categoryId: categoryId,
           type: txnType,
           amountPaise: amountPaise,
           date: new Date(date).toISOString(),
-          note: note,
+          note: description,
         });
+
       } else if (activeTab === "Stock Trade") {
         if (!stockSymbol || !stockQty || !stockPrice) throw new Error("Missing stock fields");
         const pricePaise = Math.round(parseFloat(stockPrice) * 100);
@@ -63,6 +124,7 @@ export default function AddEntryModal({ isOpen, onClose, onSuccess }) {
           tradeType: stockType,
           date: new Date(date).toISOString(),
         });
+
       } else if (activeTab === "Mutual Fund") {
         if (!fundName || !fundUnits || !fundNav) throw new Error("Missing fund fields");
         const navPaise = Math.round(parseFloat(fundNav) * 100);
@@ -76,8 +138,8 @@ export default function AddEntryModal({ isOpen, onClose, onSuccess }) {
         });
       }
       
-      // Clear form and close
-      onSuccess?.();
+      // Clear form and respond to shell
+      if (onSuccess) onSuccess();
       onClose();
     } catch (err) {
       console.error("Submission error:", err);
@@ -88,26 +150,26 @@ export default function AddEntryModal({ isOpen, onClose, onSuccess }) {
   };
 
   // Label style utility
-  const labelClass = "block text-[10px] font-mono uppercase tracking-widest text-on-surface-variant/60 mb-2";
-  const inputClass = "w-full bg-[#12121f] text-on-surface border border-outline-variant/20 rounded-lg px-4 py-3 placeholder-on-surface-variant/30 focus:border-tertiary focus:ring-1 focus:ring-tertiary outline-none transition-all";
+  const labelClass = "block text-[10px] font-mono uppercase tracking-widest text-[#F1F0EC]/60 mb-2";
+  const inputClass = "w-full bg-[#12121f] text-[#F1F0EC] border border-[#F1F0EC]/10 rounded-lg px-4 py-3 placeholder-[#F1F0EC]/30 focus:border-[#C9A84C] focus:ring-1 focus:ring-[#C9A84C] outline-none transition-all";
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
       <div 
-        className="w-full max-w-lg bg-[#1a1a28] rounded-2xl border border-outline-variant/10 shadow-2xl flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200"
+        className="w-full max-w-lg bg-[#1a1a28] rounded-2xl border border-[#F1F0EC]/10 shadow-2xl flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex justify-between items-center px-8 py-5 border-b border-outline-variant/10">
+        <div className="flex justify-between items-center px-8 py-5 border-b border-[#F1F0EC]/10">
           <div>
-            <h2 className="text-xl font-headline text-tertiary-container">Quick Add Entry</h2>
-            <p className="font-mono text-[10px] text-on-surface-variant/50 uppercase tracking-widest mt-1">
+            <h2 className="text-xl font-headline text-[#C9A84C]">Quick Add Entry</h2>
+            <p className="font-mono text-[10px] text-[#F1F0EC]/50 uppercase tracking-widest mt-1">
               Securely injecting data into ledger
             </p>
           </div>
           <button 
             onClick={onClose}
-            className="text-on-surface-variant hover:text-tertiary transition-colors w-8 h-8 flex items-center justify-center rounded-full hover:bg-surface-container-highest/50"
+            className="text-[#F1F0EC]/60 hover:text-[#C9A84C] transition-colors w-8 h-8 flex items-center justify-center rounded-full hover:bg-surface-container-highest/50"
           >
             <span className="material-symbols-outlined text-[20px]">close</span>
           </button>
@@ -115,15 +177,15 @@ export default function AddEntryModal({ isOpen, onClose, onSuccess }) {
 
         {/* Tabs */}
         <div className="px-8 pt-6">
-          <div className="flex bg-[#12121f] rounded-lg p-1 border border-outline-variant/10 overflow-x-auto no-scrollbar">
+          <div className="flex bg-[#12121f] rounded-lg p-1 border border-[#F1F0EC]/10 overflow-x-auto no-scrollbar">
             {TAB_OPTIONS.map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
                 className={`flex-1 min-w-[100px] text-xs font-mono uppercase tracking-wider py-2.5 rounded-md transition-all duration-300 ${
                   activeTab === tab 
-                    ? "bg-[#C9A84C] text-[#0d0d1a] font-bold shadow-md" 
-                    : "text-on-surface-variant/60 hover:text-on-surface-variant"
+                    ? "bg-[#C9A84C] text-[#0d0d1a] font-bold shadow-[0_2px_10px_0_rgba(201,168,76,0.2)]" 
+                    : "text-[#F1F0EC]/60 hover:text-[#F1F0EC]"
                 }`}
               >
                 {tab}
@@ -135,13 +197,13 @@ export default function AddEntryModal({ isOpen, onClose, onSuccess }) {
         {/* Form Content */}
         <div className="px-8 py-6 overflow-y-auto flex-1 no-scrollbar">
           {error && (
-            <div className="bg-red-500/10 border border-red-500/30 text-red-400 p-3 rounded-lg mb-6 text-sm flex items-center gap-2">
+            <div className="bg-red-500/10 border border-red-500/30 text-red-400 p-3 rounded-lg mb-6 text-sm font-mono flex items-center gap-2">
               <span className="material-symbols-outlined text-[18px]">error</span>
               {error}
             </div>
           )}
 
-          <form id="quickAddForm" onSubmit={handleSubmit} className="space-y-5">
+          <form id="quickAddForm" onSubmit={handleSubmit} className="space-y-6">
             {/* Common Fields */}
             <div>
               <label className={labelClass}>Date of Transaction</label>
@@ -163,7 +225,10 @@ export default function AddEntryModal({ isOpen, onClose, onSuccess }) {
                     <select 
                       className={inputClass}
                       value={txnType}
-                      onChange={(e) => setTxnType(e.target.value)}
+                      onChange={(e) => {
+                        setTxnType(e.target.value);
+                        setSelectedCategoryName(e.target.value === "EXPENSE" ? "Food & Dining" : "Salary");
+                      }}
                     >
                       <option value="EXPENSE">Expense</option>
                       <option value="INCOME">Income</option>
@@ -184,14 +249,46 @@ export default function AddEntryModal({ isOpen, onClose, onSuccess }) {
                     />
                   </div>
                 </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className={labelClass}>Account</label>
+                    <select 
+                      className={inputClass}
+                      value={selectedAccountId}
+                      onChange={(e) => setSelectedAccountId(e.target.value)}
+                    >
+                      {accounts.length ? (
+                        accounts.map(acc => (
+                          <option key={acc.id} value={acc.id}>{acc.name}</option>
+                        ))
+                      ) : (
+                        <option value="">Auto-create Wallet</option>
+                      )}
+                    </select>
+                  </div>
+                  <div>
+                    <label className={labelClass}>Category</label>
+                    <select 
+                      className={inputClass}
+                      value={selectedCategoryName}
+                      onChange={(e) => setSelectedCategoryName(e.target.value)}
+                    >
+                      {categoryOptions.map(cat => (
+                        <option key={cat} value={cat}>{cat}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
                 <div>
-                  <label className={labelClass}>Note / Reference</label>
+                  <label className={labelClass}>Description / Note</label>
                   <input 
                     type="text" 
                     className={inputClass} 
                     placeholder="e.g. Monthly groceries"
-                    value={note}
-                    onChange={(e) => setNote(e.target.value)}
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
                   />
                 </div>
               </>
@@ -313,7 +410,7 @@ export default function AddEntryModal({ isOpen, onClose, onSuccess }) {
         </div>
 
         {/* Footer Actions */}
-        <div className="px-8 py-5 border-t border-outline-variant/10 bg-[#12121f]/50 rounded-b-2xl flex justify-end gap-4">
+        <div className="px-8 py-5 border-t border-[#F1F0EC]/10 bg-[#12121f]/80 rounded-b-2xl flex justify-end gap-4">
           <button
             type="button"
             onClick={onClose}

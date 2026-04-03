@@ -11,6 +11,7 @@ import reportRoutes from "./reportRoutes.js";
 import netWorthRoutes from "./netWorthRoutes.js";
 import aiRoutes from "./aiRoutes.js";
 import uploadRoutes from "./uploadRoutes.js";
+import categoryRoutes from "./categoryRoutes.js";
 
 const router = Router();
 
@@ -26,5 +27,6 @@ router.use("/reports", reportRoutes);
 router.use("/net-worth", netWorthRoutes);
 router.use("/ai", aiRoutes);
 router.use("/upload", uploadRoutes);
+router.use("/categories", categoryRoutes);
 
 export default router;
