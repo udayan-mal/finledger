@@ -28,20 +28,57 @@ const mobileNavItems = [
   { href: "/settings", icon: "settings", label: "Menu" }
 ];
 
-function NavLink({ item, pathname, onClick }) {
+// ──────────────────────────────────────────────
+// Animated Hamburger Component
+// ──────────────────────────────────────────────
+function AnimatedHamburger({ isOpen, onClick, className = "" }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`relative w-10 h-10 flex flex-col justify-center items-center group transition-colors rounded-full hover:bg-surface-container-highest/50 ${className}`}
+      aria-label="Toggle menu"
+    >
+      <span
+        className={`block h-[2px] w-5 bg-current rounded-full transition-all duration-300 ease-in-out ${
+          isOpen ? "rotate-45 translate-y-[6px]" : "-translate-y-[5px]"
+        }`}
+      />
+      <span
+        className={`block h-[2px] w-5 bg-current rounded-full transition-all duration-200 ease-in-out ${
+          isOpen ? "opacity-0" : "opacity-100"
+        }`}
+      />
+      <span
+        className={`block h-[2px] w-5 bg-current rounded-full transition-all duration-300 ease-in-out ${
+          isOpen ? "-rotate-45 -translate-y-[6px]" : "translate-y-[5px]"
+        }`}
+      />
+    </button>
+  );
+}
+
+// ──────────────────────────────────────────────
+// NavLink Component
+// ──────────────────────────────────────────────
+function NavLink({ item, pathname, onClick, isExpanded = true }) {
   const active = pathname === item.href;
   return (
     <Link
       href={item.href}
       onClick={onClick}
-      className={`flex items-center gap-4 px-8 py-3.5 transition-all duration-300 ${
+      // Group makes icon hover states work even when collapsing
+      className={`group flex items-center py-3.5 transition-all duration-300 ${
+        isExpanded ? "px-8 gap-4" : "justify-center px-0 gap-0 relative"
+      } ${
         active
-          ? "text-[#C9A84C] border-r-2 border-[#C9A84C] bg-gradient-to-r from-[#C9A84C]/10 to-transparent translate-x-1"
+          ? "text-[#C9A84C] bg-gradient-to-r from-[#C9A84C]/10 to-transparent border-r-2 border-[#C9A84C]"
           : "text-[#F1F0EC]/40 hover:text-[#F1F0EC] hover:bg-[#1a1a28]"
       }`}
     >
       <span
-        className="material-symbols-outlined text-[20px]"
+        className={`material-symbols-outlined transition-all duration-300 ${
+          isExpanded ? "text-[20px]" : "text-[24px]"
+        }`}
         style={
           active
             ? {
@@ -53,31 +90,64 @@ function NavLink({ item, pathname, onClick }) {
       >
         {item.icon}
       </span>
-      <span className="font-mono text-xs uppercase tracking-widest">
+
+      {/* Label - fades out and shrinks width when collapsed */}
+      <span
+        className={`font-mono text-xs uppercase tracking-widest whitespace-nowrap overflow-hidden transition-all duration-300 ease-in-out ${
+          isExpanded ? "opacity-100 max-w-[150px] ml-0" : "opacity-0 max-w-0 ml-0 hidden md:block" // Hidden to prevent layout shift when fully collapsed
+        }`}
+      >
         {item.label}
       </span>
+
+      {/* Tooltip for mini-sidebar mode (visible on hover when collapsed) */}
+      {!isExpanded && (
+        <div className="absolute left-16 bg-[#1a1a28] text-[#F1F0EC] px-3 py-1.5 rounded-md font-mono text-[10px] uppercase tracking-widest opacity-0 scale-95 pointer-events-none group-hover:opacity-100 group-hover:scale-100 transition-all duration-200 z-50 whitespace-nowrap shadow-xl border border-outline-variant/10">
+          {item.label}
+        </div>
+      )}
     </Link>
   );
 }
 
+// ──────────────────────────────────────────────
+// AppShell Component
+// ──────────────────────────────────────────────
 export default function AppShell({ children }) {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  
+  // Controls desktop sidebar expanded/mini state
+  const [isSidebarExpanded, setIsSidebarExpanded] = useState(true);
 
   return (
     <>
       {/* ─── Desktop Sidebar ─── */}
-      <aside className="hidden md:flex flex-col py-8 gap-y-6 h-screen w-72 left-0 top-0 fixed bg-[#0d0d1a] z-50">
-        <div className="px-8 mb-4 flex items-center gap-3">
+      <aside 
+        className={`hidden md:flex flex-col py-8 gap-y-6 h-screen left-0 top-0 fixed bg-[#0d0d1a] z-50 transition-all duration-300 ease-in-out shadow-2xl ${
+          isSidebarExpanded ? "w-72" : "w-20"
+        }`}
+      >
+        <div 
+          className={`flex items-center mb-4 transition-all duration-300 h-10 ${
+            isSidebarExpanded ? "px-8 gap-3" : "px-0 justify-center flex-col gap-0"
+          }`}
+        >
           <Image
             src="/logo.png"
             alt="FinLedger"
-            width={36}
-            height={36}
-            className="h-9 w-9 object-contain"
+            width={isSidebarExpanded ? 36 : 32}
+            height={isSidebarExpanded ? 36 : 32}
+            className={`object-contain transition-all duration-300 flex-shrink-0 ${
+              isSidebarExpanded ? "h-9 w-9" : "h-8 w-8"
+            }`}
             priority
           />
-          <div>
+          <div 
+            className={`transition-all duration-300 overflow-hidden whitespace-nowrap ${
+              isSidebarExpanded ? "opacity-100 w-auto" : "opacity-0 w-0 h-0"
+            }`}
+          >
             <h1 className="text-xl font-headline text-tertiary-container">
               FinLedger
             </h1>
@@ -89,12 +159,18 @@ export default function AppShell({ children }) {
 
         <nav className="flex flex-col flex-grow overflow-y-auto no-scrollbar">
           {navItems.map((item) => (
-            <NavLink key={item.href} item={item} pathname={pathname} />
+            <NavLink 
+              key={item.href} 
+              item={item} 
+              pathname={pathname} 
+              isExpanded={isSidebarExpanded} 
+            />
           ))}
-          <div className="mt-auto">
+          <div className="mt-auto pt-4 border-t border-outline-variant/5">
             <NavLink
               item={{ href: "/settings", icon: "settings", label: "Settings" }}
               pathname={pathname}
+              isExpanded={isSidebarExpanded}
             />
           </div>
         </nav>
@@ -104,11 +180,11 @@ export default function AppShell({ children }) {
       {mobileMenuOpen && (
         <>
           <div
-            className="fixed inset-0 z-40 bg-black/60 md:hidden"
+            className="fixed inset-0 z-40 bg-black/60 md:hidden backdrop-blur-sm transition-opacity"
             onClick={() => setMobileMenuOpen(false)}
           />
-          <aside className="fixed left-0 top-0 z-50 flex h-screen w-72 flex-col bg-[#0d0d1a] py-5 md:hidden">
-            <div className="mb-4 flex justify-between items-center px-8">
+          <aside className="fixed left-0 top-0 z-50 flex h-screen w-[80%] max-w-[300px] flex-col bg-[#0d0d1a] py-5 md:hidden shadow-2xl animate-in slide-in-from-left">
+            <div className="mb-4 flex justify-between items-center px-8 border-b border-outline-variant/10 pb-4">
               <div className="flex items-center gap-3">
                 <Image
                   src="/logo.png"
@@ -128,13 +204,14 @@ export default function AppShell({ children }) {
                 <span className="material-symbols-outlined">close</span>
               </button>
             </div>
-            <nav className="flex flex-col flex-grow overflow-y-auto">
+            <nav className="flex flex-col flex-grow overflow-y-auto pt-2">
               {navItems.map((item) => (
                 <NavLink
                   key={item.href}
                   item={item}
                   pathname={pathname}
                   onClick={() => setMobileMenuOpen(false)}
+                  isExpanded={true}
                 />
               ))}
               <div className="mt-auto">
@@ -146,6 +223,7 @@ export default function AppShell({ children }) {
                   }}
                   pathname={pathname}
                   onClick={() => setMobileMenuOpen(false)}
+                  isExpanded={true}
                 />
               </div>
             </nav>
@@ -154,35 +232,54 @@ export default function AppShell({ children }) {
       )}
 
       {/* ─── Main Canvas ─── */}
-      <main className="md:ml-72 min-h-screen">
+      <main 
+        className={`min-h-screen transition-all duration-300 ease-in-out ${
+          isSidebarExpanded ? "md:ml-72" : "md:ml-20"
+        }`}
+      >
         {/* Top App Bar */}
-        <header className="flex justify-between items-center w-full px-6 md:px-12 h-20 bg-[#12121f] sticky top-0 z-40 shadow-[0_32px_32px_0_rgba(13,13,26,0.08)]">
-          <div className="flex items-center gap-8">
-            <button
-              className="md:hidden text-on-surface-variant hover:text-tertiary transition-colors"
-              onClick={() => setMobileMenuOpen(true)}
-            >
-              <span className="material-symbols-outlined">menu</span>
-            </button>
-            <span className="text-2xl font-headline italic text-tertiary-container">
+        <header className="flex justify-between items-center w-full px-6 md:px-12 h-20 bg-[#12121f] sticky top-0 z-30 shadow-[0_32px_32px_0_rgba(13,13,26,0.08)]">
+          <div className="flex items-center gap-2 md:gap-6">
+            
+            {/* Mobile Nav Toggle */}
+            <div className="md:hidden">
+              <AnimatedHamburger 
+                isOpen={mobileMenuOpen} 
+                onClick={() => setMobileMenuOpen(true)} 
+                className="text-on-surface-variant hover:text-tertiary"
+              />
+            </div>
+
+            {/* Desktop Sidebar Toggle */}
+            <div className="hidden md:flex">
+              <AnimatedHamburger 
+                isOpen={isSidebarExpanded} 
+                onClick={() => setIsSidebarExpanded(!isSidebarExpanded)} 
+                className="text-on-surface-variant hover:text-tertiary"
+              />
+            </div>
+
+            <span className="text-2xl font-headline italic text-tertiary-container ml-2 md:ml-0">
               FinLedger
             </span>
-            <div className="hidden lg:flex relative">
+            <div className="hidden lg:flex relative ml-4">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-on-surface-variant/40">
                 search
               </span>
               <input
-                className="bg-surface-container-low border-none focus:ring-1 focus:ring-tertiary text-sm py-2 pl-10 pr-4 w-64 rounded-lg placeholder:text-on-surface-variant/40 text-on-surface outline-none"
+                className="bg-surface-container-low/50 border border-outline-variant/10 focus:border-tertiary/50 focus:ring-1 focus:ring-tertiary/50 text-sm py-2 pl-10 pr-4 w-72 rounded-lg placeholder:text-on-surface-variant/30 text-on-surface outline-none transition-all"
                 placeholder="Search holdings..."
                 type="text"
               />
             </div>
           </div>
           <div className="flex items-center gap-6">
-            <button className="material-symbols-outlined text-on-surface-variant hover:text-tertiary transition-colors">
+            <button className="relative material-symbols-outlined text-on-surface-variant hover:text-tertiary transition-colors">
               notifications
+              {/* Notification dot */}
+              <span className="absolute top-0.5 right-0.5 w-2 h-2 bg-tertiary rounded-full border border-[#12121f]"></span>
             </button>
-            <div className="w-10 h-10 rounded-full overflow-hidden border border-outline-variant/30 bg-surface-container flex items-center justify-center">
+            <div className="w-10 h-10 rounded-full overflow-hidden border border-outline-variant/30 bg-surface-container flex items-center justify-center cursor-pointer hover:border-tertiary/50 transition-colors">
               <span className="material-symbols-outlined text-on-surface-variant">
                 person
               </span>
@@ -234,15 +331,15 @@ export default function AppShell({ children }) {
       </main>
 
       {/* ─── Mobile Bottom Nav ─── */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-[#1a1a28] h-16 flex items-center justify-around z-50">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-[#1a1a28]/95 backdrop-blur-md h-16 flex items-center justify-around z-50 border-t border-outline-variant/10">
         {mobileNavItems.map((item) => {
           const active = pathname === item.href;
           return (
             <Link
               key={item.href}
               href={item.href}
-              className={`flex flex-col items-center gap-1 ${
-                active ? "text-[#C9A84C]" : "text-[#F1F0EC]/40"
+              className={`flex flex-col items-center gap-1 transition-all ${
+                active ? "text-[#C9A84C] -translate-y-1" : "text-[#F1F0EC]/40 hover:text-[#F1F0EC]/80"
               }`}
             >
               <span
