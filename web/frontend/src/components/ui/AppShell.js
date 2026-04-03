@@ -5,6 +5,7 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import AddEntryModal from "./AddEntryModal";
+import { useAuth } from "@/context/AuthContext";
 
 const navGroups = [
   {
@@ -198,6 +199,7 @@ function FinancialHealthWidget({ isExpanded }) {
 export default function AppShell({ children }) {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { logout, user } = useAuth();
   
   // Controls desktop sidebar expanded/mini state
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(true);
@@ -272,6 +274,26 @@ export default function AppShell({ children }) {
           </div>
           
           <FinancialHealthWidget isExpanded={isSidebarExpanded} />
+
+          {/* User Profile Section with Logout */}
+          <div className={`p-4 mt-auto border-t border-[#F1F0EC]/10 transition-all duration-300 ${isSidebarExpanded ? "opacity-100" : "opacity-0 invisible"}`}>
+            <div className="flex items-center gap-3 w-full group">
+              <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-[#C9A84C] to-[#EFD781] flex items-center justify-center text-[#0d0d1a] font-bold shadow-lg shrink-0">
+                {user?.name ? user.name.charAt(0).toUpperCase() : "U"}
+              </div>
+              <div className="flex-1 w-0 min-w-0">
+                <p className="text-sm font-bold text-on-surface truncate">{user?.name || "System Admin"}</p>
+                <p className="text-xs text-on-surface-variant truncate">{user?.email || "vault@finledger.internal"}</p>
+              </div>
+              <button 
+                onClick={logout}
+                className="w-10 h-10 shrink-0 text-on-surface-variant flex items-center justify-center rounded-lg hover:bg-surface-container hover:text-red-400 transition-colors"
+                title="Logout"
+              >
+                <span className="material-symbols-outlined text-[20px]">logout</span>
+              </button>
+            </div>
+          </div>
 
           <div className={`mt-0 border-t border-outline-variant/10 pt-4 ${isSidebarExpanded ? "px-4" : "px-0"}`}>
              <NavLink
