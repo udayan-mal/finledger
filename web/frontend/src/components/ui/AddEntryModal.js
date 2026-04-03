@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import api from "@/lib/api";
+import { api } from "@/lib/api";
 
 const TAB_OPTIONS = ["Transaction", "Stock Trade", "Mutual Fund"];
 
@@ -43,7 +43,7 @@ export default function AddEntryModal({ isOpen, onClose, onSuccess }) {
         // Convert to paise safely
         const amountPaise = Math.round(parseFloat(amount) * 100);
 
-        await api.post("/v1/transactions", {
+        await api.post("/transactions", {
           // Hardcoding standard categories/accounts for MVP logic to avoid blocking users
           accountId: "00000000-0000-0000-0000-000000000000",
           categoryId: "00000000-0000-0000-0000-000000000000",
@@ -56,7 +56,7 @@ export default function AddEntryModal({ isOpen, onClose, onSuccess }) {
         if (!stockSymbol || !stockQty || !stockPrice) throw new Error("Missing stock fields");
         const pricePaise = Math.round(parseFloat(stockPrice) * 100);
         
-        await api.post("/v1/stock-trades", {
+        await api.post("/stock-trades", {
           symbol: stockSymbol.toUpperCase(),
           qty: parseInt(stockQty, 10),
           pricePaise,
@@ -67,7 +67,7 @@ export default function AddEntryModal({ isOpen, onClose, onSuccess }) {
         if (!fundName || !fundUnits || !fundNav) throw new Error("Missing fund fields");
         const navPaise = Math.round(parseFloat(fundNav) * 100);
         
-        await api.post("/v1/mutual-funds", {
+        await api.post("/mutual-funds", {
           fundName,
           units: parseFloat(fundUnits),
           navAtBuyPaise: navPaise,
