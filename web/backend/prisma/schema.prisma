@@ -80,6 +80,7 @@ model Transaction {
   type         TransactionType
   amountPaise  Int
   categoryId   String?
+  description  String?
   note         String?
   receiptUrl   String?
   tags         String[]

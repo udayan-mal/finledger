@@ -25,6 +25,7 @@ export default function AddEntryModal({ isOpen, onClose, onSuccess }) {
   const [txnType, setTxnType] = useState("EXPENSE");
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
+  const [note, setNote] = useState("");
   
   // Database References
   const [accounts, setAccounts] = useState([]);
@@ -110,7 +111,8 @@ export default function AddEntryModal({ isOpen, onClose, onSuccess }) {
           type: txnType,
           amountPaise: amountPaise,
           date: new Date(date).toISOString(),
-          note: description,
+          description: description,
+          note: note,
         });
 
       } else if (activeTab === "Stock Trade") {
@@ -281,15 +283,27 @@ export default function AddEntryModal({ isOpen, onClose, onSuccess }) {
                   </div>
                 </div>
 
-                <div>
-                  <label className={labelClass}>Description / Note</label>
-                  <input 
-                    type="text" 
-                    className={inputClass} 
-                    placeholder="e.g. Monthly groceries"
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                  />
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className={labelClass}>Description</label>
+                    <input 
+                      type="text" 
+                      className={inputClass} 
+                      placeholder="e.g. Monthly groceries"
+                      value={description}
+                      onChange={(e) => setDescription(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Note (Optional)</label>
+                    <input 
+                      type="text" 
+                      className={inputClass} 
+                      placeholder="Any additional details"
+                      value={note}
+                      onChange={(e) => setNote(e.target.value)}
+                    />
+                  </div>
                 </div>
               </>
             )}
