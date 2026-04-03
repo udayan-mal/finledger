@@ -1,0 +1,4 @@
+export const ACCOUNT_TYPES = ["BANK", "CASH", "WALLET", "INVESTMENT", "LIABILITY"];
+export const TRANSACTION_TYPES = ["EXPENSE", "INCOME", "TRANSFER", "INVESTMENT"];
+export const MUTUAL_FUND_TYPES = ["SIP", "LUMPSUM"];
+export const TRADE_TYPES = ["BUY", "SELL", "DIVIDEND"];

@@ -1,0 +1,21 @@
+{
+  "name": "finledger",
+  "private": true,
+  "version": "1.0.0",
+  "workspaces": [
+    "web/frontend",
+    "web/backend",
+    "shared"
+  ],
+  "scripts": {
+    "dev": "concurrently -n backend,frontend -c cyan,yellow \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:frontend": "npm run dev --workspace web/frontend",
+    "dev:backend": "npm run dev --workspace web/backend",
+    "build": "npm run build --workspace web/frontend && npm run prisma:generate --workspace web/backend",
+    "lint": "npm run lint --workspace web/frontend && npm run lint --workspace web/backend",
+    "test": "npm run test --workspace web/backend"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}

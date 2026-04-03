@@ -1,0 +1,221 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum AccountType {
+  BANK
+  CASH
+  WALLET
+  INVESTMENT
+  LIABILITY
+}
+
+enum CategoryType {
+  EXPENSE
+  INCOME
+}
+
+enum TransactionType {
+  EXPENSE
+  INCOME
+  TRANSFER
+  INVESTMENT
+}
+
+enum TradeType {
+  BUY
+  SELL
+  DIVIDEND
+}
+
+enum MutualFundType {
+  SIP
+  LUMPSUM
+}
+
+model User {
+  id                  String              @id @default(uuid())
+  name                String
+  email               String              @unique
+  passwordHash        String
+  currencyPreference  String              @default("INR")
+  timezone            String              @default("Asia/Kolkata")
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+  accounts            Account[]
+  transactions        Transaction[]
+  categories          Category[]
+  stockTrades         StockTrade[]
+  mutualFunds         MutualFund[]
+  budgets             Budget[]
+  recurringExpenses   RecurringExpense[]
+  netWorthSnapshots   NetWorthSnapshot[]
+  aiInsights          AiInsight[]
+  goals               Goal[]
+}
+
+model Account {
+  id           String      @id @default(uuid())
+  userId       String
+  type         AccountType
+  name         String
+  balancePaise Int         @default(0)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
+
+  @@index([userId])
+}
+
+model Transaction {
+  id           String          @id @default(uuid())
+  userId       String
+  accountId    String
+  type         TransactionType
+  amountPaise  Int
+  categoryId   String?
+  note         String?
+  receiptUrl   String?
+  tags         String[]
+  date         DateTime
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account      Account         @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  category     Category?       @relation(fields: [categoryId], references: [id])
+  splits       TransactionSplit[]
+
+  @@index([userId, date])
+  @@index([accountId, date])
+}
+
+model TransactionSplit {
+  id            String      @id @default(uuid())
+  transactionId String
+  categoryId    String
+  amountPaise   Int
+  transaction   Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  category      Category    @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+}
+
+model Category {
+  id           String        @id @default(uuid())
+  userId       String
+  name         String
+  icon         String?
+  color        String?
+  type         CategoryType
+  createdAt    DateTime      @default(now())
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
+  budget       Budget?
+
+  @@index([userId, type])
+}
+
+model StockTrade {
+  id                  String    @id @default(uuid())
+  userId              String
+  symbol              String
+  qty                 Int
+  pricePaise          Int
+  brokeragePaise      Int       @default(0)
+  sttPaise            Int       @default(0)
+  exchangeFeePaise    Int       @default(0)
+  sebiChargePaise     Int       @default(0)
+  stampDutyPaise      Int       @default(0)
+  gstPaise            Int       @default(0)
+  totalChargesPaise   Int       @default(0)
+  tradeType           TradeType
+  date                DateTime
+  createdAt           DateTime  @default(now())
+  user                User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, date])
+  @@index([userId, symbol])
+}
+
+model MutualFund {
+  id            String         @id @default(uuid())
+  userId        String
+  fundName      String
+  folio         String?
+  units         Decimal        @db.Decimal(20, 6)
+  navAtBuyPaise Int
+  sipAmountPaise Int?
+  sipDate       Int?
+  type          MutualFundType
+  date          DateTime
+  createdAt     DateTime       @default(now())
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, date])
+}
+
+model Budget {
+  id            String   @id @default(uuid())
+  userId        String
+  categoryId    String
+  period        String
+  amountPaise   Int
+  rollover      Boolean  @default(false)
+  startDate     DateTime
+  createdAt     DateTime @default(now())
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category      Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@index([userId, startDate])
+}
+
+model Goal {
+  id              String   @id @default(uuid())
+  userId          String
+  name            String
+  targetAmountPaise Int
+  currentAmountPaise Int @default(0)
+  targetDate      DateTime
+  createdAt       DateTime @default(now())
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model RecurringExpense {
+  id          String   @id @default(uuid())
+  userId      String
+  name        String
+  amountPaise Int
+  frequency   String
+  nextDue     DateTime
+  active      Boolean  @default(true)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, nextDue])
+}
+
+model NetWorthSnapshot {
+  id                    String   @id @default(uuid())
+  userId                String
+  totalAssetsPaise      Int
+  totalLiabilitiesPaise Int
+  date                  DateTime
+  createdAt             DateTime @default(now())
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, date])
+}
+
+model AiInsight {
+  id          String   @id @default(uuid())
+  userId      String
+  insightText String
+  type        String
+  generatedAt DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, generatedAt])
+}
