@@ -15,12 +15,13 @@
     "lint": "node -e \"console.log('No lint config yet')\""
   },
   "dependencies": {
-    "@prisma/client": "^6.5.0",
     "@finledger/shared": "file:../../shared",
+    "@prisma/client": "^6.5.0",
     "bcryptjs": "^2.4.3",
     "bullmq": "^5.43.2",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
+    "csv-parse": "^6.2.1",
     "csv-stringify": "^6.5.2",
     "decimal.js": "^10.4.3",
     "dotenv": "^16.4.7",

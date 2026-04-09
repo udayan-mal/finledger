@@ -3,39 +3,8 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
-}
-
-enum AccountType {
-  BANK
-  CASH
-  WALLET
-  INVESTMENT
-  LIABILITY
-}
-
-enum CategoryType {
-  EXPENSE
-  INCOME
-}
-
-enum TransactionType {
-  EXPENSE
-  INCOME
-  TRANSFER
-  INVESTMENT
-}
-
-enum TradeType {
-  BUY
-  SELL
-  DIVIDEND
-}
-
-enum MutualFundType {
-  SIP
-  LUMPSUM
 }
 
 model User {
@@ -60,36 +29,36 @@ model User {
 }
 
 model Account {
-  id           String      @id @default(uuid())
+  id           String        @id @default(uuid())
   userId       String
-  type         AccountType
+  type         String        @default("WALLET")
   name         String
-  balancePaise Int         @default(0)
-  createdAt    DateTime    @default(now())
-  updatedAt    DateTime    @updatedAt
-  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  balancePaise Int           @default(0)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   transactions Transaction[]
 
   @@index([userId])
 }
 
 model Transaction {
-  id           String          @id @default(uuid())
+  id           String             @id @default(uuid())
   userId       String
   accountId    String
-  type         TransactionType
+  type         String             @default("EXPENSE")
   amountPaise  Int
   categoryId   String?
   description  String?
   note         String?
   receiptUrl   String?
-  tags         String[]
+  tags         String             @default("[]")
   date         DateTime
-  createdAt    DateTime        @default(now())
-  updatedAt    DateTime        @updatedAt
-  user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  account      Account         @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  category     Category?       @relation(fields: [categoryId], references: [id])
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+  user         User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account      Account            @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  category     Category?          @relation(fields: [categoryId], references: [id])
   splits       TransactionSplit[]
 
   @@index([userId, date])
@@ -106,83 +75,84 @@ model TransactionSplit {
 }
 
 model Category {
-  id           String        @id @default(uuid())
+  id           String             @id @default(uuid())
   userId       String
   name         String
   icon         String?
   color        String?
-  type         CategoryType
-  createdAt    DateTime      @default(now())
-  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type         String             @default("EXPENSE")
+  createdAt    DateTime           @default(now())
+  user         User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   transactions Transaction[]
+  splits       TransactionSplit[]
   budget       Budget?
 
   @@index([userId, type])
 }
 
 model StockTrade {
-  id                  String    @id @default(uuid())
-  userId              String
-  symbol              String
-  qty                 Int
-  pricePaise          Int
-  brokeragePaise      Int       @default(0)
-  sttPaise            Int       @default(0)
-  exchangeFeePaise    Int       @default(0)
-  sebiChargePaise     Int       @default(0)
-  stampDutyPaise      Int       @default(0)
-  gstPaise            Int       @default(0)
-  totalChargesPaise   Int       @default(0)
-  tradeType           TradeType
-  date                DateTime
-  createdAt           DateTime  @default(now())
-  user                User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                String   @id @default(uuid())
+  userId            String
+  symbol            String
+  qty               Int
+  pricePaise        Int
+  brokeragePaise    Int      @default(0)
+  sttPaise          Int      @default(0)
+  exchangeFeePaise  Int      @default(0)
+  sebiChargePaise   Int      @default(0)
+  stampDutyPaise    Int      @default(0)
+  gstPaise          Int      @default(0)
+  totalChargesPaise Int      @default(0)
+  tradeType         String   @default("BUY")
+  date              DateTime
+  createdAt         DateTime @default(now())
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, date])
   @@index([userId, symbol])
 }
 
 model MutualFund {
-  id            String         @id @default(uuid())
-  userId        String
-  fundName      String
-  folio         String?
-  units         Decimal        @db.Decimal(20, 6)
-  navAtBuyPaise Int
+  id             String   @id @default(uuid())
+  userId         String
+  fundName       String
+  folio          String?
+  units          Float
+  navAtBuyPaise  Int
   sipAmountPaise Int?
-  sipDate       Int?
-  type          MutualFundType
-  date          DateTime
-  createdAt     DateTime       @default(now())
-  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sipDate        Int?
+  type           String   @default("SIP")
+  date           DateTime
+  createdAt      DateTime @default(now())
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, date])
 }
 
 model Budget {
-  id            String   @id @default(uuid())
-  userId        String
-  categoryId    String
-  period        String
-  amountPaise   Int
-  rollover      Boolean  @default(false)
-  startDate     DateTime
-  createdAt     DateTime @default(now())
-  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  category      Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  id          String   @id @default(uuid())
+  userId      String
+  categoryId  String   @unique
+  period      String
+  amountPaise Int
+  rollover    Boolean  @default(false)
+  startDate   DateTime
+  createdAt   DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category    Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
 
   @@index([userId, startDate])
 }
 
 model Goal {
-  id              String   @id @default(uuid())
-  userId          String
-  name            String
-  targetAmountPaise Int
-  currentAmountPaise Int @default(0)
-  targetDate      DateTime
-  createdAt       DateTime @default(now())
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                 String   @id @default(uuid())
+  userId             String
+  name               String
+  targetAmountPaise  Int
+  currentAmountPaise Int      @default(0)
+  targetDate         DateTime
+  createdAt          DateTime @default(now())
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model RecurringExpense {

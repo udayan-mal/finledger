@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { api } from "@/lib/api";
 
-const TAB_OPTIONS = ["Transaction", "Stock Trade", "Mutual Fund"];
+const TAB_OPTIONS = ["Transaction", "Stock Trade", "Mutual Fund", "Bulk CSV Import"];
 
 const DEFAULT_EXPENSE_CATEGORIES = [
   "Food & Dining", "Travel", "Entertainment", "Shopping", "Medical", 
@@ -45,6 +45,9 @@ export default function AddEntryModal({ isOpen, onClose, onSuccess }) {
   const [fundUnits, setFundUnits] = useState("");
   const [fundNav, setFundNav] = useState("");
   const [fundType, setFundType] = useState("SIP");
+
+  // CSV specific state
+  const [csvFile, setCsvFile] = useState(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -137,6 +140,17 @@ export default function AddEntryModal({ isOpen, onClose, onSuccess }) {
           navAtBuyPaise: navPaise,
           type: fundType,
           date: new Date(date).toISOString(),
+        });
+      } else if (activeTab === "Bulk CSV Import") {
+        if (!csvFile) throw new Error("Please select a CSV file first.");
+        
+        const formData = new FormData();
+        formData.append("file", csvFile);
+        
+        await api.post("/transactions/upload/csv", formData, {
+          headers: {
+            "Content-Type": "multipart/form-data"
+          }
         });
       }
       
@@ -419,6 +433,38 @@ export default function AddEntryModal({ isOpen, onClose, onSuccess }) {
                   </div>
                 </div>
               </>
+            )}
+
+            {/* CSV Import Fields */}
+            {activeTab === "Bulk CSV Import" && (
+              <div className="flex flex-col items-center justify-center p-8 border-2 border-dashed border-[#F1F0EC]/20 rounded-xl hover:border-[#C9A84C]/50 transition-colors bg-[#0d0d1a]/50">
+                <span className="material-symbols-outlined text-[48px] text-[#C9A84C] mb-4">cloud_upload</span>
+                <p className="font-headline text-lg text-on-surface mb-2">Upload Bank Statement</p>
+                <p className="font-mono text-[10px] uppercase tracking-widest text-on-surface-variant/60 text-center mb-6 max-w-sm">
+                  Drag and drop your standard CSV file or click to browse. Ensure it contains: Date, Description, Type, Amount (INR).
+                </p>
+                
+                <input 
+                  type="file" 
+                  accept=".csv"
+                  className="hidden" 
+                  id="csv-upload"
+                  onChange={(e) => setCsvFile(e.target.files[0])}
+                />
+                <label 
+                  htmlFor="csv-upload"
+                  className="bg-[#1a1a28] text-[#F1F0EC] border border-[#F1F0EC]/20 hover:border-[#C9A84C]/50 px-6 py-2.5 rounded-lg font-mono text-xs uppercase tracking-widest cursor-pointer transition-colors hover:bg-surface-container"
+                >
+                  {csvFile ? csvFile.name : "Select CSV File"}
+                </label>
+
+                {csvFile && (
+                  <p className="font-mono text-[10px] text-green-400 mt-4 flex items-center gap-1">
+                    <span className="material-symbols-outlined text-[14px]">check_circle</span>
+                    File locked and ready for ingestion
+                  </p>
+                )}
+              </div>
             )}
           </form>
         </div>
