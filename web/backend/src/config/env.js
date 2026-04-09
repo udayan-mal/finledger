@@ -12,5 +12,6 @@ export const env = {
   accessTtl: process.env.ACCESS_TOKEN_TTL || "15m",
   refreshTtl: process.env.REFRESH_TOKEN_TTL || "30d",
   frontendUrl: process.env.FRONTEND_URL || "http://localhost:3000",
-  claudeApiKey: process.env.CLAUDE_API_KEY || ""
+  claudeApiKey: process.env.CLAUDE_API_KEY || "",
+  geminiApiKey: process.env.GEMINI_API_KEY || ""
 };
