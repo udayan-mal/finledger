@@ -15,8 +15,8 @@ export default function TransactionsPage() {
   useEffect(() => {
     async function fetchTransactions() {
       try {
-        const { data } = await api.get("/transactions");
-        setTransactions(data);
+        const res = await api.get("/transactions");
+        setTransactions(res.data.data || []);
       } catch (err) {
         console.error("Failed to fetch transactions:", err);
         setError("Failed to load transactions.");
