@@ -28,33 +28,39 @@ export default function StocksPage() {
 
   const calculateHoldings = (rawTrades) => {
     const map = {};
+    let totalRealizedPnl = 0;
+    let totalCharges = 0;
 
     // Sort ascending (oldest first) to accurately build Average Cost algorithms
     const sortedTrades = [...rawTrades].sort((a, b) => new Date(a.date) - new Date(b.date));
 
     sortedTrades.forEach(t => {
       if (!map[t.symbol]) {
-        map[t.symbol] = { symbol: t.symbol, qty: 0, avgCost: 0, charges: 0, lastPrice: 0 };
+        map[t.symbol] = { symbol: t.symbol, qty: 0, avgCost: 0, charges: 0, lastPrice: 0, realizedPnl: 0 };
       }
       
       const h = map[t.symbol];
+      const tradeCharges = t.totalChargesPaise || 0;
+      h.charges += tradeCharges;
+      totalCharges += tradeCharges;
 
       if (t.tradeType === "BUY") {
         const currentTotalValue = h.qty * h.avgCost;
         const newTradeValue = t.qty * t.pricePaise;
         h.avgCost = (currentTotalValue + newTradeValue) / (h.qty + t.qty);
         h.qty += t.qty;
-        h.charges += (t.totalChargesPaise || 0);
         h.lastPrice = t.pricePaise;
       } else if (t.tradeType === "SELL") {
+        // Realized P&L = (Sell Price - Avg Cost) * Qty Sold - Charges on this trade
+        const realizedOnTrade = (t.pricePaise - h.avgCost) * t.qty - tradeCharges;
+        h.realizedPnl += realizedOnTrade;
+        totalRealizedPnl += realizedOnTrade;
         h.qty -= t.qty;
-        if (h.qty < 0) h.qty = 0; // Data safety buffer
-        h.charges += (t.totalChargesPaise || 0);
+        if (h.qty < 0) h.qty = 0; 
         h.lastPrice = t.pricePaise;
       } else if (t.tradeType === "DIVIDEND") {
-        // Dividends don't affect average core cost basis, but affect P&L
-        // We'll track it in charges as a negative charge to benefit P&L.
-        h.charges -= (t.pricePaise * t.qty); // Simplified
+        h.realizedPnl += (t.pricePaise * t.qty);
+        totalRealizedPnl += (t.pricePaise * t.qty);
       }
     });
 
@@ -64,29 +70,32 @@ export default function StocksPage() {
     // Calculate aggregated portfolio totals
     let totalInvested = 0;
     let totalCurrent = 0;
+    let totalUnrealized = 0;
 
     activeHoldings.forEach(h => {
-      // Calculate specific holding finances
       h.investedPaise = (h.qty * h.avgCost); 
       h.currentValuePaise = (h.qty * h.lastPrice);
       h.unrealizedPnlPaise = h.currentValuePaise - h.investedPaise;
       h.pnlPercent = h.investedPaise > 0 ? (h.unrealizedPnlPaise / h.investedPaise) * 100 : 0;
 
-      // Add to global totals
       totalInvested += h.investedPaise;
       totalCurrent += h.currentValuePaise;
+      totalUnrealized += h.unrealizedPnlPaise;
     });
 
     setHoldings(activeHoldings.sort((a, b) => b.investedPaise - a.investedPaise));
     
     // Set global metrics
-    const overallPnl = totalCurrent - totalInvested;
+    const overallPnl = totalUnrealized + totalRealizedPnl;
     const overallPnlPercent = totalInvested > 0 ? (overallPnl / totalInvested) * 100 : 0;
     
     setMetrics({
       invested: totalInvested,
       current: totalCurrent,
       pnl: overallPnl,
+      unrealized: totalUnrealized,
+      realized: totalRealizedPnl,
+      charges: totalCharges,
       pnlPercent: overallPnlPercent
     });
   };
@@ -124,34 +133,59 @@ export default function StocksPage() {
       ) : (
         <>
           {/* Summary Cards */}
-          <section className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <section className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
             <div className="glass-panel p-6 rounded-xl border border-outline-variant/10 shadow-xl bg-[#0d0d1a] relative overflow-hidden group">
               <div className="absolute inset-0 bg-[#C9A84C]/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-              <p className="font-mono text-[10px] uppercase tracking-widest text-on-surface-variant/60 mb-2 relative z-10">Total Invested</p>
+              <p className="font-mono text-[10px] uppercase tracking-widest text-on-surface-variant/60 mb-2 relative z-10">Total Invested (Active)</p>
               <span className="font-mono text-2xl font-bold text-on-surface relative z-10">{formatCurrency(metrics.invested)}</span>
             </div>
+            
             <div className="glass-panel p-6 rounded-xl border border-outline-variant/10 shadow-xl bg-[#0d0d1a] relative overflow-hidden group">
               <div className="absolute inset-0 bg-[#C9A84C]/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
               <p className="font-mono text-[10px] uppercase tracking-widest text-on-surface-variant/60 mb-2 relative z-10">Current Value</p>
               <span className="font-mono text-2xl font-bold text-[#C9A84C] relative z-10">{formatCurrency(metrics.current)}</span>
             </div>
+
             <div className="glass-panel p-6 rounded-xl border border-outline-variant/10 shadow-xl bg-[#0d0d1a] relative overflow-hidden group">
               <div className="absolute inset-0 bg-[#C9A84C]/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
               <p className="font-mono text-[10px] uppercase tracking-widest text-on-surface-variant/60 mb-2 relative z-10">Unrealized P&L</p>
               <div className="flex items-baseline gap-2 relative z-10">
-                <span className={`font-mono text-2xl font-bold ${metrics.pnl >= 0 ? "text-green-400" : "text-red-400"}`}>
-                  {metrics.pnl > 0 ? "+" : ""}{formatCurrency(metrics.pnl)}
+                <span className={`font-mono text-2xl font-bold ${metrics.unrealized >= 0 ? "text-green-400" : "text-red-400"}`}>
+                  {metrics.unrealized > 0 ? "+" : ""}{formatCurrency(metrics.unrealized)}
                 </span>
-                <span className={`material-symbols-outlined text-sm ${metrics.pnl >= 0 ? "text-green-500" : "text-red-500"}`}>
-                  {metrics.pnl >= 0 ? "trending_up" : "trending_down"}
+                <span className={`material-symbols-outlined text-sm ${metrics.unrealized >= 0 ? "text-green-500" : "text-red-500"}`}>
+                  {metrics.unrealized >= 0 ? "trending_up" : "trending_down"}
                 </span>
               </div>
             </div>
+
+            <div className="glass-panel p-6 rounded-xl border border-outline-variant/10 shadow-xl bg-[#0d0d1a] relative overflow-hidden group">
+              <div className="absolute inset-0 bg-[#C9A84C]/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+              <p className="font-mono text-[10px] uppercase tracking-widest text-on-surface-variant/60 mb-2 relative z-10">Realized P&L (Sells)</p>
+              <div className="flex items-baseline gap-2 relative z-10">
+                <span className={`font-mono text-2xl font-bold ${metrics.realized >= 0 ? "text-green-400" : "text-red-400"}`}>
+                  {metrics.realized > 0 ? "+" : ""}{formatCurrency(metrics.realized)}
+                </span>
+              </div>
+            </div>
+
             <div className="glass-panel p-6 rounded-xl border border-outline-variant/10 shadow-xl bg-[#12121f] relative overflow-hidden">
-              <p className="font-mono text-[10px] uppercase tracking-widest text-on-surface-variant/60 mb-2">Portfolio Return</p>
-              <span className={`font-mono text-2xl font-bold ${metrics.pnlPercent >= 0 ? "text-green-400" : "text-red-400"}`}>
-                 {metrics.pnlPercent > 0 ? "+" : ""}{metrics.pnlPercent.toFixed(2)}%
+              <p className="font-mono text-[10px] uppercase tracking-widest text-on-surface-variant/60 mb-2">Total Charges Paid</p>
+              <span className="font-mono text-2xl font-bold text-red-400">
+                 -{formatCurrency(metrics.charges)}
               </span>
+            </div>
+
+            <div className="glass-panel p-6 rounded-xl border border-outline-variant/10 shadow-xl bg-[#12121f] relative overflow-hidden">
+              <p className="font-mono text-[10px] uppercase tracking-widest text-on-surface-variant/60 mb-2">Total Net Profit</p>
+              <div className="flex flex-col relative z-10">
+                <span className={`font-mono text-2xl font-bold ${metrics.pnl >= 0 ? "text-green-400" : "text-red-400"}`}>
+                  {metrics.pnl > 0 ? "+" : ""}{formatCurrency(metrics.pnl)}
+                </span>
+                <span className={`font-mono text-xs font-bold mt-1 ${metrics.pnlPercent >= 0 ? "text-green-500" : "text-red-500"}`}>
+                  {metrics.pnlPercent > 0 ? "+" : ""}{metrics.pnlPercent.toFixed(2)}% All-Time Yield
+                </span>
+              </div>
             </div>
           </section>
 

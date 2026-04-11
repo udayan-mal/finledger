@@ -39,6 +39,7 @@ export default function AddEntryModal({ isOpen, onClose, onSuccess }) {
   const [stockQty, setStockQty] = useState("");
   const [stockPrice, setStockPrice] = useState("");
   const [stockType, setStockType] = useState("BUY");
+  const [stockBrokerage, setStockBrokerage] = useState("");
 
   // Mutual Fund specific state
   const [fundName, setFundName] = useState("");
@@ -55,9 +56,27 @@ export default function AddEntryModal({ isOpen, onClose, onSuccess }) {
       Promise.all([
         api.get("/accounts").catch(() => ({ data: { data: [] } })),
         api.get("/categories").catch(() => ({ data: { data: [] } }))
-      ]).then(([accRes, catRes]) => {
-        const accs = accRes.data.data || [];
+      ]).then(async ([accRes, catRes]) => {
+        let accs = accRes.data.data || [];
         const cats = catRes.data.data || [];
+
+        // Auto-seed default bank accounts if user is missing them
+        const defaults = [
+          { name: "Kotak", type: "BANK", balancePaise: 0 },
+          { name: "SBI", type: "BANK", balancePaise: 0 },
+          { name: "Slice", type: "WALLET", balancePaise: 0 }
+        ];
+        
+        const missing = defaults.filter(d => !accs.find(a => a.name === d.name));
+        
+        if (missing.length > 0) {
+          const created = await Promise.all(
+            missing.map(a => api.post("/accounts", a).catch(() => null))
+          );
+          const newAccs = created.filter(r => r !== null).map(r => r.data.data || r.data);
+          accs = [...accs, ...newAccs];
+        }
+
         setAccounts(accs);
         setCategories(cats);
         if (accs.length > 0) {
@@ -124,10 +143,13 @@ export default function AddEntryModal({ isOpen, onClose, onSuccess }) {
         if (!stockSymbol || !stockQty || !stockPrice) throw new Error("Missing stock fields");
         const pricePaise = Math.round(parseFloat(stockPrice) * 100);
         
+        const brokeragePaise = stockBrokerage ? Math.round(parseFloat(stockBrokerage) * 100) : 0;
+
         await api.post("/stock-trades", {
           symbol: stockSymbol.toUpperCase(),
           qty: parseInt(stockQty, 10),
           pricePaise,
+          brokeragePaise,
           tradeType: stockType,
           date: new Date(date).toISOString(),
         });
@@ -351,7 +373,7 @@ export default function AddEntryModal({ isOpen, onClose, onSuccess }) {
                     </select>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-3 gap-4">
                   <div>
                     <label className={labelClass}>Quantity</label>
                     <input 
@@ -375,6 +397,18 @@ export default function AddEntryModal({ isOpen, onClose, onSuccess }) {
                       value={stockPrice}
                       onChange={(e) => setStockPrice(e.target.value)}
                       required
+                    />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Brokerage (₹)</label>
+                    <input 
+                      type="number" 
+                      step="0.01"
+                      min="0"
+                      className={inputClass} 
+                      placeholder="e.g. 20"
+                      value={stockBrokerage}
+                      onChange={(e) => setStockBrokerage(e.target.value)}
                     />
                   </div>
                 </div>
