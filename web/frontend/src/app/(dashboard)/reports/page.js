@@ -1,86 +1,191 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { api } from "@/lib/api";
+
+const PERIODS = [
+  { label: "This Month", key: "monthly", getRange: () => {
+    const now = new Date();
+    return { start: new Date(now.getFullYear(), now.getMonth(), 1), end: now };
+  }},
+  { label: "This Quarter", key: "quarterly", getRange: () => {
+    const now = new Date();
+    const qStart = new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1);
+    return { start: qStart, end: now };
+  }},
+  { label: "This Year", key: "yearly", getRange: () => {
+    const now = new Date();
+    return { start: new Date(now.getFullYear(), 0, 1), end: now };
+  }},
+  { label: "Last 30 Days", key: "last30", getRange: () => {
+    const now = new Date();
+    return { start: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000), end: now };
+  }},
+  { label: "Last 90 Days", key: "last90", getRange: () => {
+    const now = new Date();
+    return { start: new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000), end: now };
+  }}
+];
+
 export default function ReportsPage() {
+  const [activePeriod, setActivePeriod] = useState("monthly");
+  const [reportData, setReportData] = useState(null);
+  const [cashFlow, setCashFlow] = useState([]);
+  const [expenseBreakdown, setExpenseBreakdown] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    fetchReport(activePeriod);
+    // Also get the dashboard data for charts
+    api.get("/dashboard/summary")
+      .then(res => {
+        const d = res.data.data;
+        setCashFlow(d?.cashFlow || []);
+        setExpenseBreakdown(d?.expenseBreakdown || []);
+      })
+      .catch(() => {});
+  }, []);
+
+  const fetchReport = async (periodKey) => {
+    setIsLoading(true);
+    setActivePeriod(periodKey);
+    const period = PERIODS.find(p => p.key === periodKey);
+    if (!period) return;
+    
+    const { start, end } = period.getRange();
+    try {
+      const res = await api.get("/reports/range", {
+        params: {
+          start: start.toISOString(),
+          end: end.toISOString(),
+          type: periodKey
+        }
+      });
+      setReportData(res.data.data);
+    } catch (err) {
+      console.error("Report error:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const formatCurrency = (paise) => `₹${((paise || 0) / 100).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
+  
+  const income = reportData?.totals?.incomePaise || 0;
+  const expense = reportData?.totals?.expensePaise || 0;
+  const savings = income - expense;
+
+  const DONUT_COLORS = ["#e6c364", "#8b7832", "#c9a84c", "#6b5e30", "#a88d3e"];
+
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 animate-in fade-in duration-500">
       <div>
         <h2 className="font-headline text-3xl text-on-surface">Reports & Analytics</h2>
-        <p className="text-on-surface-variant/60 text-sm">Daily, weekly, monthly, quarterly, yearly and custom range analytics</p>
+        <p className="text-on-surface-variant/60 text-sm font-mono mt-1 uppercase tracking-widest">Financial intelligence across time ranges</p>
       </div>
 
-      {/* Date Filter Chips */}
+      {/* Period Filter Chips */}
       <div className="flex gap-2 flex-wrap">
-        {["Daily", "Weekly", "Monthly", "Quarterly", "Yearly", "Custom"].map((period) => (
-          <button key={period} className={`px-4 py-2 rounded-lg font-mono text-[10px] uppercase tracking-widest transition-colors ${period === "Monthly" ? "bg-surface-container-highest text-tertiary" : "text-on-surface-variant/40 hover:text-on-surface-variant hover:bg-surface-container-high/50"}`}>
-            {period}
+        {PERIODS.map(p => (
+          <button
+            key={p.key}
+            onClick={() => fetchReport(p.key)}
+            className={`px-4 py-2 rounded-lg font-mono text-[10px] uppercase tracking-widest transition-all duration-200 ${
+              activePeriod === p.key
+                ? "bg-[#C9A84C] text-[#0d0d1a] font-bold shadow-[0_2px_10px_0_rgba(201,168,76,0.2)]"
+                : "text-[#F1F0EC]/40 hover:text-[#F1F0EC] hover:bg-[#1a1a28] border border-outline-variant/10"
+            }`}
+          >
+            {p.label}
           </button>
         ))}
       </div>
 
-      {/* Charts Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="glass-panel rounded-xl p-8 border-t border-tertiary/20">
-          <h3 className="font-headline text-xl text-on-surface mb-2">Expense Breakdown</h3>
-          <p className="text-on-surface-variant/60 text-xs mb-8">Category-wise donut chart</p>
-          <div className="flex items-center justify-center h-48">
-            <div className="w-40 h-40 rounded-full border-[10px] border-tertiary/20 relative">
-              <div className="absolute inset-0 rounded-full border-[10px] border-tertiary border-b-transparent border-r-transparent rotate-12" />
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="font-mono text-lg font-bold text-on-surface">₹42K</span>
-                <span className="font-mono text-[9px] text-on-surface-variant/60">THIS MONTH</span>
-              </div>
+      {isLoading ? (
+        <div className="glass-panel p-24 flex flex-col items-center justify-center gap-4 rounded-xl shadow-2xl">
+          <span className="material-symbols-outlined text-[32px] text-[#C9A84C] animate-spin">refresh</span>
+          <p className="font-mono text-xs uppercase tracking-widest text-[#F1F0EC]/60">Analyzing Financial Data...</p>
+        </div>
+      ) : (
+        <>
+          {/* Key Metrics */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="glass-panel p-6 rounded-xl border border-outline-variant/10 shadow-xl bg-[#0d0d1a] text-center">
+              <p className="font-mono text-[10px] uppercase tracking-widest text-on-surface-variant/60 mb-2">Total Income</p>
+              <p className="font-mono text-2xl font-bold text-green-400">{formatCurrency(income)}</p>
+            </div>
+            <div className="glass-panel p-6 rounded-xl border border-outline-variant/10 shadow-xl bg-[#0d0d1a] text-center">
+              <p className="font-mono text-[10px] uppercase tracking-widest text-on-surface-variant/60 mb-2">Total Expenses</p>
+              <p className="font-mono text-2xl font-bold text-red-400">{formatCurrency(expense)}</p>
+            </div>
+            <div className="glass-panel p-6 rounded-xl border border-outline-variant/10 shadow-xl bg-[#0d0d1a] text-center">
+              <p className="font-mono text-[10px] uppercase tracking-widest text-on-surface-variant/60 mb-2">Net Savings</p>
+              <p className={`font-mono text-2xl font-bold ${savings >= 0 ? "text-[#C9A84C]" : "text-red-400"}`}>{formatCurrency(savings)}</p>
             </div>
           </div>
-        </div>
 
-        <div className="glass-panel rounded-xl p-8 border-t border-tertiary/20">
-          <h3 className="font-headline text-xl text-on-surface mb-2">Income vs Expense</h3>
-          <p className="text-on-surface-variant/60 text-xs mb-8">Monthly comparison bars</p>
-          <div className="flex items-end gap-3 h-48 px-4">
-            {[65, 40, 72, 45, 80, 42].map((h, i) => (
-              <div key={i} className="flex-1 flex flex-col gap-1">
-                <div className={`rounded-t-sm transition-all ${i % 2 === 0 ? "bg-tertiary/40" : "bg-red-400/30"}`} style={{ height: `${h}%` }} />
-              </div>
-            ))}
-          </div>
-        </div>
+          {/* Charts Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Cash Flow Chart */}
+            <div className="glass-panel rounded-xl p-8 border border-outline-variant/10 shadow-xl bg-[#0d0d1a]">
+              <h3 className="font-headline text-xl text-on-surface mb-2">Cash Flow — 6 Months</h3>
+              <p className="text-[#F1F0EC]/40 text-xs font-mono mb-6">Income vs Expense trend</p>
+              {cashFlow.length > 0 && cashFlow.some(d => d.income > 0 || d.expense > 0) ? (
+                <div className="space-y-3">
+                  {cashFlow.map((m, i) => (
+                    <div key={i} className="space-y-1">
+                      <div className="flex justify-between">
+                        <span className="font-mono text-[10px] text-[#F1F0EC]/60 uppercase">{m.month}</span>
+                        <span className="font-mono text-[10px] text-[#F1F0EC]/40">₹{m.income.toLocaleString("en-IN")} / ₹{m.expense.toLocaleString("en-IN")}</span>
+                      </div>
+                      <div className="flex gap-1 h-2">
+                        <div className="bg-green-400/60 rounded-full" style={{ width: `${Math.max(2, (m.income / (Math.max(m.income, m.expense) || 1)) * 100)}%` }} />
+                        <div className="bg-red-400/60 rounded-full" style={{ width: `${Math.max(2, (m.expense / (Math.max(m.income, m.expense) || 1)) * 100)}%` }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="h-48 flex items-center justify-center">
+                  <p className="font-mono text-xs text-[#F1F0EC]/30">Add transactions to see trends</p>
+                </div>
+              )}
+            </div>
 
-        <div className="glass-panel rounded-xl p-8 border-t border-tertiary/20">
-          <h3 className="font-headline text-xl text-on-surface mb-2">Net Savings Trend</h3>
-          <p className="text-on-surface-variant/60 text-xs mb-8">Monthly savings trajectory</p>
-          <div className="h-48 flex items-end relative">
-            <svg className="w-full h-full" viewBox="0 0 300 120" preserveAspectRatio="none">
-              <defs>
-                <linearGradient id="savGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#e6c364" stopOpacity="0.3" />
-                  <stop offset="100%" stopColor="#e6c364" stopOpacity="0" />
-                </linearGradient>
-              </defs>
-              <path d="M0 100 Q50 80 100 60 T200 40 T300 20 V120 H0Z" fill="url(#savGrad)" />
-              <path d="M0 100 Q50 80 100 60 T200 40 T300 20" fill="none" stroke="#e6c364" strokeWidth="2" />
-            </svg>
-          </div>
-        </div>
-
-        <div className="glass-panel rounded-xl p-8 border-t border-tertiary/20">
-          <h3 className="font-headline text-xl text-on-surface mb-2">Cash Flow Sankey</h3>
-          <p className="text-on-surface-variant/60 text-xs mb-8">Where money comes from and goes</p>
-          <div className="h-48 flex items-center justify-center">
-            <div className="text-center">
-              <span className="material-symbols-outlined text-4xl text-tertiary/40 mb-2">account_tree</span>
-              <p className="text-on-surface-variant/40 text-xs font-mono">Connect data to generate</p>
+            {/* Expense Breakdown */}
+            <div className="glass-panel rounded-xl p-8 border border-outline-variant/10 shadow-xl bg-[#0d0d1a]">
+              <h3 className="font-headline text-xl text-on-surface mb-2">Expense Breakdown</h3>
+              <p className="text-[#F1F0EC]/40 text-xs font-mono mb-6">Category-wise distribution</p>
+              {expenseBreakdown.length > 0 ? (
+                <div className="space-y-3">
+                  {expenseBreakdown.map((cat, i) => (
+                    <div key={cat.name} className="flex items-center gap-3">
+                      <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: DONUT_COLORS[i % DONUT_COLORS.length] }} />
+                      <span className="text-sm text-[#F1F0EC] flex-1 truncate">{cat.name}</span>
+                      <span className="font-mono text-xs text-[#F1F0EC]/60">{cat.percentage}%</span>
+                      <span className="font-mono text-sm font-bold text-on-surface">₹{(cat.amount || 0).toLocaleString("en-IN")}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="h-48 flex items-center justify-center">
+                  <p className="font-mono text-xs text-[#F1F0EC]/30">No expense data yet</p>
+                </div>
+              )}
             </div>
           </div>
-        </div>
-      </div>
 
-      {/* Export */}
-      <div className="flex gap-3">
-        <button className="border border-outline-variant/30 px-5 py-2.5 rounded-lg text-on-surface text-sm hover:border-tertiary transition-colors flex items-center gap-2">
-          <span className="material-symbols-outlined text-[18px]">picture_as_pdf</span> Export PDF
-        </button>
-        <button className="border border-outline-variant/30 px-5 py-2.5 rounded-lg text-on-surface text-sm hover:border-tertiary transition-colors flex items-center gap-2">
-          <span className="material-symbols-outlined text-[18px]">table_chart</span> Export CSV
-        </button>
-      </div>
+          {/* Export Buttons */}
+          <div className="flex gap-3">
+            <button
+              onClick={() => window.print()}
+              className="border border-outline-variant/20 px-5 py-2.5 rounded-lg text-sm text-on-surface hover:border-[#C9A84C] transition-colors flex items-center gap-2"
+            >
+              <span className="material-symbols-outlined text-[18px]">picture_as_pdf</span> Export PDF
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }

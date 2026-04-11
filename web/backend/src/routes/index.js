@@ -12,6 +12,7 @@ import netWorthRoutes from "./netWorthRoutes.js";
 import aiRoutes from "./aiRoutes.js";
 import uploadRoutes from "./uploadRoutes.js";
 import categoryRoutes from "./categoryRoutes.js";
+import recurringRoutes from "./recurringRoutes.js";
 
 const router = Router();
 
@@ -28,5 +29,6 @@ router.use("/net-worth", netWorthRoutes);
 router.use("/ai", aiRoutes);
 router.use("/upload", uploadRoutes);
 router.use("/categories", categoryRoutes);
+router.use("/recurring", recurringRoutes);
 
 export default router;

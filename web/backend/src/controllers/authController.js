@@ -78,3 +78,33 @@ export const refresh = async (req, res) => {
     return fail(res, "Invalid refresh token", 401, "UNAUTHORIZED");
   }
 };
+
+export const getProfile = async (req, res, next) => {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.sub },
+      select: { id: true, name: true, email: true, currencyPreference: true, timezone: true, createdAt: true }
+    });
+    return ok(res, user);
+  } catch (error) {
+    return next(error);
+  }
+};
+
+export const updateProfile = async (req, res, next) => {
+  try {
+    const { name, currencyPreference, timezone } = req.body;
+    const user = await prisma.user.update({
+      where: { id: req.user.sub },
+      data: {
+        ...(name && { name }),
+        ...(currencyPreference && { currencyPreference }),
+        ...(timezone && { timezone })
+      },
+      select: { id: true, name: true, email: true, currencyPreference: true, timezone: true }
+    });
+    return ok(res, user);
+  } catch (error) {
+    return next(error);
+  }
+};

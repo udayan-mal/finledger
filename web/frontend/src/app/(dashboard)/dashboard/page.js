@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
+import { api } from "@/lib/api";
 import ExpenseAreaChart from "@/components/charts/ExpenseAreaChart";
 
 /* ──────────────────────────────────────────────
@@ -127,22 +128,17 @@ export default function DashboardPage() {
   const fetchDashboard = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await fetch("/api/v1/dashboard/summary");
-      if (res.ok) {
-        const json = await res.json();
-        setData(json.data);
-        setError(null);
-      } else if (res.status === 401) {
-        // Not logged in — show empty state
+      const res = await api.get("/dashboard/summary");
+      setData(res.data.data);
+      setError(null);
+    } catch (err) {
+      if (err.response?.status === 401) {
         setData(null);
         setError(null);
       } else {
         setData(null);
+        setError(null);
       }
-    } catch {
-      // Backend not available — show empty state gracefully
-      setData(null);
-      setError(null);
     } finally {
       setLoading(false);
     }
