@@ -18,18 +18,27 @@ export const listTransactions = async (req, res, next) => {
 
 export const createTransaction = async (req, res, next) => {
   try {
+    const { accountId, categoryId, type, amountPaise, date, description, note, receiptUrl, tags, splits } = req.body;
+
     const item = await prisma.transaction.create({
       data: {
-        ...req.body,
         userId: req.user.sub,
-        date: new Date(req.body.date),
-        splits: req.body.splits?.length
+        accountId,
+        categoryId: categoryId || null,
+        type: type || "EXPENSE",
+        amountPaise,
+        date: new Date(date),
+        description: description || null,
+        note: note || null,
+        receiptUrl: receiptUrl || null,
+        tags: typeof tags === "string" ? tags : JSON.stringify(tags || []),
+        splits: splits?.length
           ? {
-              create: req.body.splits.map((split) => ({ categoryId: split.categoryId, amountPaise: split.amountPaise }))
+              create: splits.map((s) => ({ categoryId: s.categoryId, amountPaise: s.amountPaise }))
             }
           : undefined
       },
-      include: { splits: true }
+      include: { splits: true, category: true, account: true }
     });
     return ok(res, item, 201);
   } catch (error) {

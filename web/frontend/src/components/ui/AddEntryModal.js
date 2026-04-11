@@ -53,13 +53,15 @@ export default function AddEntryModal({ isOpen, onClose, onSuccess }) {
     if (isOpen) {
       // Fetch user's existing accounts and categories
       Promise.all([
-        api.get("/accounts").catch(() => ({ data: [] })),
-        api.get("/categories").catch(() => ({ data: [] }))
+        api.get("/accounts").catch(() => ({ data: { data: [] } })),
+        api.get("/categories").catch(() => ({ data: { data: [] } }))
       ]).then(([accRes, catRes]) => {
-        setAccounts(accRes.data);
-        setCategories(catRes.data);
-        if (accRes.data.length > 0) {
-          setSelectedAccountId(accRes.data[0].id);
+        const accs = accRes.data.data || [];
+        const cats = catRes.data.data || [];
+        setAccounts(accs);
+        setCategories(cats);
+        if (accs.length > 0) {
+          setSelectedAccountId(accs[0].id);
         }
       });
     }
@@ -89,7 +91,7 @@ export default function AddEntryModal({ isOpen, onClose, onSuccess }) {
             type: "WALLET",
             balancePaise: 0
           });
-          finalAccountId = newAcc.data.id;
+          finalAccountId = newAcc.data.data?.id || newAcc.data.id;
         }
 
         // 2. Ensure we have a valid associated Category ID
@@ -102,7 +104,7 @@ export default function AddEntryModal({ isOpen, onClose, onSuccess }) {
               name: selectedCategoryName,
               type: txnType
             });
-            cat = newCat.data;
+            cat = newCat.data.data || newCat.data;
           }
           categoryId = cat.id;
         }
