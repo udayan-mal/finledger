@@ -21,36 +21,50 @@ const fmtINRDecimal = (paise) => {
 /* ──────────────────────────────────────────────
    Metric Card — designed for the 6-card grid
    ────────────────────────────────────────────── */
-function DashMetric({ label, value, subtitle, accent = false, icon, trend, trendLabel }) {
+function DashMetric({ label, value, subtitle, accent = false, valueColor, iconColor, icon, trend, trendLabel, gradient }) {
+  // Determine standard colors or use custom ones
+  const defaultValColor = accent ? "text-tertiary" : "text-on-surface";
+  const finalValueColor = valueColor || defaultValColor;
+  
+  const defaultIconColor = "text-on-surface-variant/50 group-hover:text-tertiary";
+  const finalIconColor = iconColor ? `${iconColor} opacity-70 group-hover:opacity-100` : defaultIconColor;
+
   return (
-    <div className="glass-panel p-5 rounded-xl border-t border-tertiary/20 hover:-translate-y-0.5 transition-transform duration-200 group">
-      {/* Top row: icon + label */}
-      <div className="flex items-center gap-2 mb-3">
-        {icon && (
-          <span className="material-symbols-outlined text-[18px] text-on-surface-variant/50 group-hover:text-tertiary transition-colors">
-            {icon}
-          </span>
-        )}
-        <p className="font-mono text-[10px] uppercase tracking-widest text-on-surface-variant/60">
-          {label}
-        </p>
-      </div>
+    <div className={`glass-panel p-5 rounded-xl border border-white/5 hover:border-white/10 hover:-translate-y-1 hover:shadow-2xl hover:shadow-[#C9A84C]/5 transition-all duration-300 group relative overflow-hidden`}>
+      {/* Subtle background glow */}
+      {gradient && (
+        <div className={`absolute -inset-10 opacity-20 pointer-events-none blur-3xl ${gradient}`} />
+      )}
+      
+      <div className="relative z-10">
+        {/* Top row: icon + label */}
+        <div className="flex items-center gap-2 mb-3">
+          {icon && (
+            <span className={`material-symbols-outlined text-[18px] transition-colors ${finalIconColor}`}>
+              {icon}
+            </span>
+          )}
+          <p className="font-mono text-[10px] uppercase tracking-widest text-on-surface-variant/60">
+            {label}
+          </p>
+        </div>
 
-      {/* Value */}
-      <p className={`font-mono text-2xl font-bold leading-tight ${accent ? "text-tertiary" : "text-on-surface"}`}>
-        {value}
-      </p>
-
-      {/* Subtitle / Trend */}
-      <div className="flex items-center gap-1.5 mt-1.5">
-        {trend !== undefined && trend !== 0 && (
-          <span className={`material-symbols-outlined text-[14px] ${trend > 0 ? "text-green-400" : "text-red-400"}`}>
-            {trend > 0 ? "trending_up" : "trending_down"}
-          </span>
-        )}
-        <p className="font-mono text-[10px] text-on-surface-variant/40">
-          {trendLabel || subtitle}
+        {/* Value */}
+        <p className={`font-mono text-2xl font-bold leading-tight drop-shadow-md ${finalValueColor}`}>
+          {value}
         </p>
+
+        {/* Subtitle / Trend */}
+        <div className="flex items-center gap-1.5 mt-1.5">
+          {trend !== undefined && trend !== 0 && (
+            <span className={`material-symbols-outlined text-[14px] ${trend > 0 ? "text-green-400" : "text-red-400"}`}>
+              {trend > 0 ? "trending_up" : "trending_down"}
+            </span>
+          )}
+          <p className="font-mono text-[10px] text-on-surface-variant/40">
+            {trendLabel || subtitle}
+          </p>
+        </div>
       </div>
     </div>
   );
@@ -172,41 +186,54 @@ export default function DashboardPage() {
           value={fmtINR(m.netWorthPaise)}
           subtitle="All assets combined"
           icon="account_balance"
+          gradient="bg-[#C9A84C]/20"
+          valueColor="text-white"
         />
         <DashMetric
           label="Total Income (Month)"
           value={fmtINR(m.monthlyIncomePaise)}
           subtitle="Current month"
           icon="trending_up"
-          accent={m.monthlyIncomePaise > 0}
+          valueColor="text-green-400"
+          iconColor="text-green-400"
+          gradient="bg-green-500/10"
         />
         <DashMetric
           label="Total Expenses (Month)"
           value={fmtINR(m.monthlyExpensePaise)}
           subtitle="Current month"
           icon="trending_down"
+          valueColor="text-red-400"
+          iconColor="text-red-400"
+          gradient="bg-red-500/10"
         />
         <DashMetric
           label="Portfolio Value"
           value={fmtINR(m.portfolioValuePaise)}
           subtitle={fmtINRDecimal(m.portfolioValuePaise)}
           icon="pie_chart"
-          accent={m.portfolioValuePaise > 0}
+          valueColor="text-[#C9A84C]"
+          iconColor="text-[#C9A84C]"
           trend={parseFloat(m.portfolioPnlPercent || 0)}
           trendLabel={`${m.portfolioPnlPercent || 0}% P&L`}
+          gradient="bg-[#C9A84C]/10"
         />
         <DashMetric
           label="Bank + Cash Balance"
           value={fmtINR(m.bankCashPaise)}
           subtitle="Across all accounts"
           icon="savings"
+          valueColor="text-blue-300"
+          iconColor="text-blue-300"
+          gradient="bg-blue-500/10"
         />
         <DashMetric
           label="Savings Rate"
           value={`${m.savingsRatePercent || 0}%`}
           subtitle="Income – Expenses"
           icon="speed"
-          accent={parseFloat(m.savingsRatePercent || 0) > 30}
+          valueColor={parseFloat(m.savingsRatePercent || 0) > 30 ? "text-green-400" : "text-white"}
+          iconColor={parseFloat(m.savingsRatePercent || 0) > 30 ? "text-green-400" : "text-white"}
         />
       </section>
 

@@ -3,9 +3,10 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import AddEntryModal from "./AddEntryModal";
 import { useAuth } from "@/context/AuthContext";
+import { api } from "@/lib/api";
 
 const navGroups = [
   {
@@ -145,6 +146,48 @@ function NavLink({ item, pathname, onClick, isExpanded = true }) {
 // Financial Health Widget
 // ──────────────────────────────────────────────
 function FinancialHealthWidget({ isExpanded }) {
+  const [score, setScore] = useState("--");
+  const [status, setStatus] = useState("COMPUTING");
+  const [colorText, setColorText] = useState("text-on-surface-variant/60");
+  const [colorBg, setColorBg] = useState("");
+
+  useEffect(() => {
+    const fetchHealth = async () => {
+      try {
+        const res = await api.get("/dashboard/summary");
+        const m = res.data.data?.metrics || {};
+        
+        let calculatedScore = 50; // Base score
+        if (m.netWorthPaise > 0) calculatedScore += 10;
+        if (parseFloat(m.savingsRatePercent) > 20) calculatedScore += 20;
+        else if (parseFloat(m.savingsRatePercent) > 0) calculatedScore += 10;
+        if (m.bankCashPaise > 10000000) calculatedScore += 20; // > ₹1 Lakh cash buffer
+        
+        calculatedScore = Math.min(100, Math.max(0, calculatedScore));
+        
+        setScore(calculatedScore);
+        if (calculatedScore >= 80) {
+          setStatus("EXCELLENT");
+          setColorText("text-green-400");
+          setColorBg("bg-green-500/10");
+        } else if (calculatedScore >= 60) {
+          setStatus("GOOD STANDING");
+          setColorText("text-blue-400");
+          setColorBg("bg-blue-500/10");
+        } else {
+          setStatus("NEEDS FOCUS");
+          setColorText("text-yellow-400");
+          setColorBg("bg-yellow-500/10");
+        }
+      } catch (err) {
+        setScore("--");
+        setStatus("NO DATA");
+        setColorText("text-on-surface-variant/40");
+      }
+    };
+    fetchHealth();
+  }, []);
+
   return (
     <div className={`mt-auto transition-all duration-300 mb-2 ${isExpanded ? "px-6" : "px-0 flex justify-center"}`}>
       <div 
@@ -154,9 +197,9 @@ function FinancialHealthWidget({ isExpanded }) {
             : "p-2 w-10 bg-surface-container flex flex-col items-center cursor-pointer hover:bg-surface-container-highest"
         }`}
       >
-        {/* Subtle background glow effect if good standing */}
-        {isExpanded && (
-          <div className="absolute -top-10 -right-10 w-24 h-24 bg-green-500/10 rounded-full blur-2xl pointer-events-none" />
+        {/* Subtle background glow effect based on score status */}
+        {isExpanded && colorBg && (
+          <div className={`absolute -top-10 -right-10 w-24 h-24 rounded-full blur-2xl pointer-events-none ${colorBg}`} />
         )}
 
         <div className={`flex items-center ${isExpanded ? "gap-3" : "justify-center"}`}>
@@ -176,8 +219,8 @@ function FinancialHealthWidget({ isExpanded }) {
               Financial Health
             </p>
             <div className="flex items-baseline gap-1.5">
-              <span className="font-headline text-xl text-on-surface font-bold leading-none">15</span>
-              <span className="text-[10px] text-green-400 uppercase font-mono tracking-wider font-bold">Good Standing</span>
+              <span className="font-headline text-xl text-on-surface font-bold leading-none">{score}</span>
+              <span className={`text-[10px] uppercase font-mono tracking-wider font-bold ${colorText}`}>{status}</span>
             </div>
           </div>
         </div>
@@ -185,7 +228,7 @@ function FinancialHealthWidget({ isExpanded }) {
         {/* Tooltip for mini mode */}
         {!isExpanded && (
           <div className="absolute left-16 bg-[#1a1a28] text-[#F1F0EC] px-3 py-1.5 rounded-md font-mono text-[10px] uppercase tracking-widest opacity-0 scale-95 pointer-events-none group-hover:opacity-100 group-hover:scale-100 transition-all duration-200 z-50 whitespace-nowrap shadow-xl border border-outline-variant/10">
-            Health: 15 (Good)
+            Health: {score} ({status})
           </div>
         )}
       </div>
@@ -206,6 +249,9 @@ export default function AppShell({ children }) {
 
   // Controls Global Quick Add Modal
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+
+  // Controls Notifications Dropdown
+  const [showNotifications, setShowNotifications] = useState(false);
 
   return (
     <>
@@ -431,16 +477,40 @@ export default function AppShell({ children }) {
                <span className="material-symbols-outlined text-[20px]">add</span>
             </button>
 
-            <button className="relative material-symbols-outlined text-on-surface-variant hover:text-tertiary transition-colors">
-              notifications
-              {/* Notification dot */}
-              <span className="absolute top-0.5 right-0.5 w-2 h-2 bg-tertiary rounded-full border border-[#12121f]"></span>
-            </button>
-            <div className="w-10 h-10 rounded-full overflow-hidden border border-outline-variant/30 bg-surface-container flex items-center justify-center cursor-pointer hover:border-tertiary/50 transition-colors">
-              <span className="material-symbols-outlined text-on-surface-variant">
-                person
-              </span>
+            <div className="relative">
+              <button 
+                onClick={() => setShowNotifications(!showNotifications)}
+                onBlur={() => setTimeout(() => setShowNotifications(false), 200)}
+                className="relative material-symbols-outlined text-on-surface-variant hover:text-tertiary transition-colors"
+              >
+                notifications
+                {/* Notification dot */}
+                <span className="absolute top-0.5 right-0.5 w-2 h-2 bg-tertiary rounded-full border border-[#12121f]"></span>
+              </button>
+              {showNotifications && (
+                <div className="absolute right-0 mt-3 w-64 bg-[#1a1a28] border border-outline-variant/10 rounded-xl shadow-2xl py-3 z-50 animate-in fade-in slide-in-from-top-2">
+                  <div className="px-4 py-2 border-b border-outline-variant/5 mb-1">
+                    <p className="font-headline text-sm text-on-surface">Notifications</p>
+                  </div>
+                  <div className="px-4 py-6 text-center">
+                    <span className="material-symbols-outlined text-on-surface-variant/30 text-3xl mb-2">notifications_off</span>
+                    <p className="text-xs text-[#F1F0EC]/40 font-mono">You're all caught up!</p>
+                  </div>
+                </div>
+              )}
             </div>
+            <Link 
+              href="/settings"
+              className="w-10 h-10 rounded-full overflow-hidden border border-outline-variant/30 bg-surface-container flex items-center justify-center cursor-pointer hover:border-tertiary/50 hover:bg-surface-container-highest transition-colors group"
+            >
+              {user?.name ? (
+                <span className="font-bold text-on-surface-variant group-hover:text-tertiary text-sm">{user.name.charAt(0).toUpperCase()}</span>
+              ) : (
+                <span className="material-symbols-outlined text-on-surface-variant group-hover:text-tertiary">
+                  person
+                </span>
+              )}
+            </Link>
           </div>
         </header>
 
