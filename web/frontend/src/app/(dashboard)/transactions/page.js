@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { api } from "@/lib/api";
+import EditEntryModal from "@/components/ui/EditEntryModal";
 
 export default function TransactionsPage() {
   const [search, setSearch] = useState("");
@@ -12,20 +13,33 @@ export default function TransactionsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    async function fetchTransactions() {
-      try {
-        const res = await api.get("/transactions");
-        setTransactions(res.data.data || []);
-      } catch (err) {
-        console.error("Failed to fetch transactions:", err);
-        setError("Failed to load transactions.");
-      } finally {
-        setIsLoading(false);
-      }
+  const [editingTx, setEditingTx] = useState(null);
+
+  const fetchTransactions = useCallback(async () => {
+    try {
+      const res = await api.get("/transactions");
+      setTransactions(res.data.data || []);
+    } catch (err) {
+      console.error("Failed to fetch transactions:", err);
+      setError("Failed to load transactions.");
+    } finally {
+      setIsLoading(false);
     }
-    fetchTransactions();
   }, []);
+
+  useEffect(() => {
+    fetchTransactions();
+  }, [fetchTransactions]);
+
+  const handleDelete = async (id) => {
+    if (!window.confirm("Are you sure you want to permanently delete this transaction?")) return;
+    try {
+      await api.delete(`/transactions/${id}`);
+      fetchTransactions();
+    } catch (err) {
+      alert("Failed to delete transaction.");
+    }
+  };
 
   // Formatters
   const formatCurrency = (paise) => {
@@ -144,6 +158,7 @@ export default function TransactionsPage() {
                   <th className="px-6 py-5 font-mono text-[10px] uppercase tracking-widest text-[#C9A84C]/80 font-bold">Description / Note</th>
                   <th className="px-6 py-5 font-mono text-[10px] uppercase tracking-widest text-[#C9A84C]/80 font-bold text-right">Amount</th>
                   <th className="px-6 py-5 font-mono text-[10px] uppercase tracking-widest text-[#C9A84C]/80 font-bold">Account</th>
+                  <th className="px-6 py-5 font-mono text-[10px] uppercase tracking-widest text-[#C9A84C]/80 font-bold text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-outline-variant/5">
@@ -183,6 +198,16 @@ export default function TransactionsPage() {
                     <td className="px-6 py-4 text-xs text-on-surface-variant/60 uppercase tracking-wider font-mono">
                       {tx.account?.name || "Unknown"}
                     </td>
+                    <td className="px-6 py-4 text-right">
+                       <div className="flex items-center justify-end gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button onClick={() => setEditingTx(tx)} className="text-on-surface-variant/50 hover:text-[#C9A84C] transition-colors" title="Edit">
+                             <span className="material-symbols-outlined text-[18px]">edit</span>
+                          </button>
+                          <button onClick={() => handleDelete(tx.id)} className="text-on-surface-variant/50 hover:text-red-400 transition-colors" title="Delete">
+                             <span className="material-symbols-outlined text-[18px]">delete</span>
+                          </button>
+                       </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -190,6 +215,14 @@ export default function TransactionsPage() {
           </div>
         )}
       </div>
+
+      <EditEntryModal 
+        isOpen={!!editingTx} 
+        onClose={() => setEditingTx(null)} 
+        onSuccess={() => { setEditingTx(null); fetchTransactions(); }}
+        entryType="TRANSACTION"
+        entryData={editingTx}
+      />
     </div>
   );
 }

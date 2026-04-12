@@ -107,6 +107,7 @@ model StockTrade {
   tradeType         String   @default("BUY")
   platform          String   @default("Zerodha")
   netPnlPaise       Int      @default(0)
+  syncTxId          String?
   date              DateTime
   createdAt         DateTime @default(now())
   user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -120,11 +121,13 @@ model MutualFund {
   userId         String
   fundName       String
   folio          String?
-  units          Float
-  navAtBuyPaise  Int
+  units          Float    @default(0)
+  navAtBuyPaise  Int      @default(0)
   sipAmountPaise Int?
   sipDate        Int?
   type           String   @default("SIP")
+  platform       String   @default("Zerodha")
+  syncTxId       String?
   date           DateTime
   createdAt      DateTime @default(now())
   user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)

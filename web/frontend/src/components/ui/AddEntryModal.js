@@ -46,9 +46,9 @@ export default function AddEntryModal({ isOpen, onClose, onSuccess }) {
 
   // Mutual Fund specific state
   const [fundName, setFundName] = useState("");
-  const [fundUnits, setFundUnits] = useState("");
-  const [fundNav, setFundNav] = useState("");
   const [fundType, setFundType] = useState("SIP");
+  const [fundPlatform, setFundPlatform] = useState("Zerodha");
+  const [fundAmount, setFundAmount] = useState("");
 
   // CSV specific state
   const [csvFile, setCsvFile] = useState(null);
@@ -148,16 +148,8 @@ export default function AddEntryModal({ isOpen, onClose, onSuccess }) {
         const totalChargesPaise = stockCharges ? Math.round(parseFloat(stockCharges) * 100) : 0;
         const netPnlPaise = (stockType === "SELL" && stockPnlAmount) ? Math.round(parseFloat(stockPnlAmount) * 100) : 0;
 
-        await api.post("/stock-trades", {
-          symbol: stockSymbol.toUpperCase(),
-          platform: stockPlatform,
-          totalChargesPaise,
-          netPnlPaise,
-          tradeType: stockType,
-          date: new Date(date).toISOString(),
-        });
-
         // Automatically create a ledger transaction for stock realized P&L to update Main Dashboard
+        let syncTxId = undefined;
         if (stockType === "SELL" && netPnlPaise > 0) {
           const txnType = stockPnlType === "PROFIT" ? "INCOME" : "EXPENSE";
           const catName = stockPnlType === "PROFIT" ? "Realized Gain" : "Realized Loss";
@@ -168,8 +160,8 @@ export default function AddEntryModal({ isOpen, onClose, onSuccess }) {
             cat = newCat.data.data || newCat.data;
           }
 
-          // We use the globally selectedAccountId (defaulting to the same one standard transactions use)
-          await api.post("/transactions", {
+          // Create transaction FIRST
+          const txRes = await api.post("/transactions", {
             accountId: selectedAccountId,
             categoryId: cat.id,
             type: txnType,
@@ -178,17 +170,45 @@ export default function AddEntryModal({ isOpen, onClose, onSuccess }) {
             description: `${stockSymbol.toUpperCase()} Trade ${stockPnlType === "PROFIT" ? "Profit" : "Loss"}`,
             note: `Platform: ${stockPlatform} | Charges Paid: ₹${(totalChargesPaise/100).toFixed(2)}`
           });
+          syncTxId = txRes.data.data.id;
         }
 
+        await api.post("/stock-trades", {
+          symbol: stockSymbol.toUpperCase(),
+          platform: stockPlatform,
+          totalChargesPaise,
+          netPnlPaise,
+          tradeType: stockType,
+          syncTxId,
+          date: new Date(date).toISOString(),
+        });
+
       } else if (activeTab === "Mutual Fund") {
-        if (!fundName || !fundUnits || !fundNav) throw new Error("Missing fund fields");
-        const navPaise = Math.round(parseFloat(fundNav) * 100);
+        if (!fundName || !fundAmount) throw new Error("Missing fund fields");
+        const amountPaise = Math.round(parseFloat(fundAmount) * 100);
         
+        let cat = categories.find(c => c.name === "Mutual Fund" && c.type === "INVESTMENT");
+        if (!cat) {
+          const newCat = await api.post("/categories", { name: "Mutual Fund", type: "INVESTMENT" });
+          cat = newCat.data.data || newCat.data;
+        }
+
+        const txRes = await api.post("/transactions", {
+          accountId: selectedAccountId,
+          categoryId: cat.id,
+          type: "INVESTMENT",
+          amountPaise: amountPaise,
+          date: new Date(date).toISOString(),
+          description: `${fundName} ${fundType}`,
+          note: `Platform: ${fundPlatform}`
+        });
+
         await api.post("/mutual-funds", {
           fundName,
-          units: parseFloat(fundUnits),
-          navAtBuyPaise: navPaise,
+          sipAmountPaise: amountPaise,
           type: fundType,
+          platform: fundPlatform,
+          syncTxId: txRes.data.data.id,
           date: new Date(date).toISOString(),
         });
       } else if (activeTab === "Bulk CSV Import") {
@@ -498,30 +518,44 @@ export default function AddEntryModal({ isOpen, onClose, onSuccess }) {
                     </select>
                   </div>
                   <div className="col-span-1">
-                    <label className={labelClass}>Units</label>
-                    <input 
-                      type="number" 
-                      step="0.001"
-                      min="0"
-                      className={inputClass} 
-                      placeholder="0.000"
-                      value={fundUnits}
-                      onChange={(e) => setFundUnits(e.target.value)}
-                      required
-                    />
+                    <label className={labelClass}>Platform</label>
+                    <select 
+                      className={inputClass}
+                      value={fundPlatform}
+                      onChange={(e) => setFundPlatform(e.target.value)}
+                    >
+                      <option value="Zerodha">Zerodha</option>
+                      <option value="Groww">Groww</option>
+                      <option value="Dhan">Dhan</option>
+                    </select>
                   </div>
                   <div className="col-span-1">
-                    <label className={labelClass}>Buy NAV(₹)</label>
+                    <label className={labelClass}>Amount (₹)</label>
                     <input 
                       type="number" 
                       step="0.01"
                       min="0"
                       className={inputClass} 
-                      placeholder="0.00"
-                      value={fundNav}
-                      onChange={(e) => setFundNav(e.target.value)}
+                      placeholder="e.g. 5000"
+                      value={fundAmount}
+                      onChange={(e) => setFundAmount(e.target.value)}
                       required
                     />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 mt-4">
+                  <div className="col-span-1">
+                    <label className={labelClass}>Debit From Account</label>
+                    <select 
+                      className={inputClass}
+                      value={selectedAccountId}
+                      onChange={(e) => setSelectedAccountId(e.target.value)}
+                    >
+                      {accounts.map(a => (
+                        <option key={a.id} value={a.id}>{a.name}</option>
+                      ))}
+                    </select>
                   </div>
                 </div>
               </>

@@ -1,30 +1,42 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { api } from "@/lib/api";
+import EditEntryModal from "@/components/ui/EditEntryModal";
 
 export default function StocksPage() {
   const [trades, setTrades] = useState([]);
-  const [holdings, setHoldings] = useState([]);
   const [metrics, setMetrics] = useState({ invested: 0, current: 0, pnl: 0, pnlPercent: 0 });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    async function fetchTrades() {
-      try {
-        const { data } = await api.get("/stock-trades");
-        setTrades(data);
-        calculateMetrics(data);
-      } catch (err) {
-        console.error("Failed to fetch stock trades:", err);
-        setError("Failed to decrypt secure ledger data.");
-      } finally {
-        setIsLoading(false);
-      }
+  const [editingTrade, setEditingTrade] = useState(null);
+
+  const fetchTrades = useCallback(async () => {
+    try {
+      const { data } = await api.get("/stock-trades");
+      calculateMetrics(data);
+    } catch (err) {
+      console.error("Failed to fetch stock trades:", err);
+      setError("Failed to decrypt secure ledger data.");
+    } finally {
+      setIsLoading(false);
     }
-    fetchTrades();
   }, []);
+
+  useEffect(() => {
+    fetchTrades();
+  }, [fetchTrades]);
+
+  const handleDelete = async (id) => {
+    if (!window.confirm("Are you sure you want to permanently delete this stock trade? Associated transactions will also be purged.")) return;
+    try {
+      await api.delete(`/stock-trades/${id}`);
+      fetchTrades();
+    } catch (err) {
+      alert("Failed to delete stock trade.");
+    }
+  };
 
   const calculateMetrics = (rawTrades) => {
     let totalRealizedPnl = 0;
@@ -142,6 +154,7 @@ export default function StocksPage() {
                       <th className="px-6 py-5 font-mono text-[10px] uppercase tracking-widest text-[#C9A84C]/80 font-bold">Platform</th>
                       <th className="px-6 py-5 font-mono text-[10px] uppercase tracking-widest text-[#C9A84C]/80 font-bold text-right">Charges Paid</th>
                       <th className="px-6 py-5 font-mono text-[10px] uppercase tracking-widest text-[#C9A84C]/80 font-bold text-right">Net P&L</th>
+                      <th className="px-6 py-5 font-mono text-[10px] uppercase tracking-widest text-[#C9A84C]/80 font-bold text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-outline-variant/5">
@@ -173,6 +186,16 @@ export default function StocksPage() {
                             "—"
                           )}
                         </td>
+                        <td className="px-6 py-4 text-right">
+                           <div className="flex items-center justify-end gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button onClick={() => setEditingTrade(t)} className="text-on-surface-variant/50 hover:text-[#C9A84C] transition-colors" title="Edit">
+                                 <span className="material-symbols-outlined text-[18px]">edit</span>
+                              </button>
+                              <button onClick={() => handleDelete(t.id)} className="text-on-surface-variant/50 hover:text-red-400 transition-colors" title="Delete">
+                                 <span className="material-symbols-outlined text-[18px]">delete</span>
+                              </button>
+                           </div>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -182,6 +205,14 @@ export default function StocksPage() {
           </div>
         </>
       )}
+
+      <EditEntryModal 
+        isOpen={!!editingTrade} 
+        onClose={() => setEditingTrade(null)} 
+        onSuccess={() => { setEditingTrade(null); fetchTrades(); }}
+        entryType="STOCK"
+        entryData={editingTrade}
+      />
     </div>
   );
 }
