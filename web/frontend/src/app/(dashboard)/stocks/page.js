@@ -15,7 +15,7 @@ export default function StocksPage() {
       try {
         const { data } = await api.get("/stock-trades");
         setTrades(data);
-        calculateHoldings(data);
+        calculateMetrics(data);
       } catch (err) {
         console.error("Failed to fetch stock trades:", err);
         setError("Failed to decrypt secure ledger data.");
@@ -26,78 +26,38 @@ export default function StocksPage() {
     fetchTrades();
   }, []);
 
-  const calculateHoldings = (rawTrades) => {
-    const map = {};
+  const calculateMetrics = (rawTrades) => {
     let totalRealizedPnl = 0;
     let totalCharges = 0;
+    let winningTrades = 0;
+    let losingTrades = 0;
 
-    // Sort ascending (oldest first) to accurately build Average Cost algorithms
-    const sortedTrades = [...rawTrades].sort((a, b) => new Date(a.date) - new Date(b.date));
+    const sortedTrades = [...rawTrades].sort((a, b) => new Date(b.date) - new Date(a.date));
 
     sortedTrades.forEach(t => {
-      if (!map[t.symbol]) {
-        map[t.symbol] = { symbol: t.symbol, qty: 0, avgCost: 0, charges: 0, lastPrice: 0, realizedPnl: 0 };
-      }
+      const pnl = t.netPnlPaise || 0;
+      const chg = t.totalChargesPaise || 0;
+
+      totalCharges += chg;
       
-      const h = map[t.symbol];
-      const tradeCharges = t.totalChargesPaise || 0;
-      h.charges += tradeCharges;
-      totalCharges += tradeCharges;
-
-      if (t.tradeType === "BUY") {
-        const currentTotalValue = h.qty * h.avgCost;
-        const newTradeValue = t.qty * t.pricePaise;
-        h.avgCost = (currentTotalValue + newTradeValue) / (h.qty + t.qty);
-        h.qty += t.qty;
-        h.lastPrice = t.pricePaise;
-      } else if (t.tradeType === "SELL") {
-        // Realized P&L = (Sell Price - Avg Cost) * Qty Sold - Charges on this trade
-        const realizedOnTrade = (t.pricePaise - h.avgCost) * t.qty - tradeCharges;
-        h.realizedPnl += realizedOnTrade;
-        totalRealizedPnl += realizedOnTrade;
-        h.qty -= t.qty;
-        if (h.qty < 0) h.qty = 0; 
-        h.lastPrice = t.pricePaise;
-      } else if (t.tradeType === "DIVIDEND") {
-        h.realizedPnl += (t.pricePaise * t.qty);
-        totalRealizedPnl += (t.pricePaise * t.qty);
+      if (t.tradeType === "SELL") {
+        totalRealizedPnl += pnl;
+        if (pnl > 0) winningTrades++;
+        if (pnl < 0) losingTrades++;
       }
     });
 
-    // Filter out rows where they sold all their stock
-    const activeHoldings = Object.values(map).filter(h => h.qty > 0);
-
-    // Calculate aggregated portfolio totals
-    let totalInvested = 0;
-    let totalCurrent = 0;
-    let totalUnrealized = 0;
-
-    activeHoldings.forEach(h => {
-      h.investedPaise = (h.qty * h.avgCost); 
-      h.currentValuePaise = (h.qty * h.lastPrice);
-      h.unrealizedPnlPaise = h.currentValuePaise - h.investedPaise;
-      h.pnlPercent = h.investedPaise > 0 ? (h.unrealizedPnlPaise / h.investedPaise) * 100 : 0;
-
-      totalInvested += h.investedPaise;
-      totalCurrent += h.currentValuePaise;
-      totalUnrealized += h.unrealizedPnlPaise;
-    });
-
-    setHoldings(activeHoldings.sort((a, b) => b.investedPaise - a.investedPaise));
-    
-    // Set global metrics
-    const overallPnl = totalUnrealized + totalRealizedPnl;
-    const overallPnlPercent = totalInvested > 0 ? (overallPnl / totalInvested) * 100 : 0;
+    const totalCompleted = winningTrades + losingTrades;
+    const winRate = totalCompleted > 0 ? (winningTrades / totalCompleted) * 100 : 0;
     
     setMetrics({
-      invested: totalInvested,
-      current: totalCurrent,
-      pnl: overallPnl,
-      unrealized: totalUnrealized,
-      realized: totalRealizedPnl,
+      pnl: totalRealizedPnl,
       charges: totalCharges,
-      pnlPercent: overallPnlPercent
+      winRate: winRate,
+      totalCompleted
     });
+    
+    setTrades(sortedTrades);
   };
 
   // Format amount mathematically
@@ -133,72 +93,42 @@ export default function StocksPage() {
       ) : (
         <>
           {/* Summary Cards */}
-          <section className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <section className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
             <div className="glass-panel p-6 rounded-xl border border-outline-variant/10 shadow-xl bg-[#0d0d1a] relative overflow-hidden group">
-              <div className="absolute inset-0 bg-[#C9A84C]/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-              <p className="font-mono text-[10px] uppercase tracking-widest text-on-surface-variant/60 mb-2 relative z-10">Total Invested (Active)</p>
-              <span className="font-mono text-2xl font-bold text-on-surface relative z-10">{formatCurrency(metrics.invested)}</span>
+              <p className="font-mono text-[10px] uppercase tracking-widest text-on-surface-variant/60 mb-2 relative z-10">Total Trades Processed</p>
+              <span className="font-mono text-3xl font-bold text-on-surface relative z-10">{metrics.totalCompleted}</span>
             </div>
             
             <div className="glass-panel p-6 rounded-xl border border-outline-variant/10 shadow-xl bg-[#0d0d1a] relative overflow-hidden group">
-              <div className="absolute inset-0 bg-[#C9A84C]/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-              <p className="font-mono text-[10px] uppercase tracking-widest text-on-surface-variant/60 mb-2 relative z-10">Current Value</p>
-              <span className="font-mono text-2xl font-bold text-[#C9A84C] relative z-10">{formatCurrency(metrics.current)}</span>
+              <p className="font-mono text-[10px] uppercase tracking-widest text-on-surface-variant/60 mb-2 relative z-10">Win Rate</p>
+              <span className={`font-mono text-3xl font-bold relative z-10 ${metrics.winRate > 50 ? 'text-green-400' : 'text-[#C9A84C]'}`}>{metrics.winRate.toFixed(1)}%</span>
             </div>
 
             <div className="glass-panel p-6 rounded-xl border border-outline-variant/10 shadow-xl bg-[#0d0d1a] relative overflow-hidden group">
-              <div className="absolute inset-0 bg-[#C9A84C]/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-              <p className="font-mono text-[10px] uppercase tracking-widest text-on-surface-variant/60 mb-2 relative z-10">Unrealized P&L</p>
-              <div className="flex items-baseline gap-2 relative z-10">
-                <span className={`font-mono text-2xl font-bold ${metrics.unrealized >= 0 ? "text-green-400" : "text-red-400"}`}>
-                  {metrics.unrealized > 0 ? "+" : ""}{formatCurrency(metrics.unrealized)}
-                </span>
-                <span className={`material-symbols-outlined text-sm ${metrics.unrealized >= 0 ? "text-green-500" : "text-red-500"}`}>
-                  {metrics.unrealized >= 0 ? "trending_up" : "trending_down"}
-                </span>
-              </div>
-            </div>
-
-            <div className="glass-panel p-6 rounded-xl border border-outline-variant/10 shadow-xl bg-[#0d0d1a] relative overflow-hidden group">
-              <div className="absolute inset-0 bg-[#C9A84C]/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-              <p className="font-mono text-[10px] uppercase tracking-widest text-on-surface-variant/60 mb-2 relative z-10">Realized P&L (Sells)</p>
-              <div className="flex items-baseline gap-2 relative z-10">
-                <span className={`font-mono text-2xl font-bold ${metrics.realized >= 0 ? "text-green-400" : "text-red-400"}`}>
-                  {metrics.realized > 0 ? "+" : ""}{formatCurrency(metrics.realized)}
-                </span>
-              </div>
-            </div>
-
-            <div className="glass-panel p-6 rounded-xl border border-outline-variant/10 shadow-xl bg-[#12121f] relative overflow-hidden">
-              <p className="font-mono text-[10px] uppercase tracking-widest text-on-surface-variant/60 mb-2">Total Charges Paid</p>
-              <span className="font-mono text-2xl font-bold text-red-400">
-                 -{formatCurrency(metrics.charges)}
+              <p className="font-mono text-[10px] uppercase tracking-widest text-on-surface-variant/60 mb-2 relative z-10">Total Net P&L</p>
+              <span className={`font-mono text-3xl font-bold relative z-10 ${metrics.pnl >= 0 ? "text-green-400" : "text-red-400"}`}>
+                {metrics.pnl > 0 ? "+" : ""}{formatCurrency(metrics.pnl)}
               </span>
             </div>
 
             <div className="glass-panel p-6 rounded-xl border border-outline-variant/10 shadow-xl bg-[#12121f] relative overflow-hidden">
-              <p className="font-mono text-[10px] uppercase tracking-widest text-on-surface-variant/60 mb-2">Total Net Profit</p>
-              <div className="flex flex-col relative z-10">
-                <span className={`font-mono text-2xl font-bold ${metrics.pnl >= 0 ? "text-green-400" : "text-red-400"}`}>
-                  {metrics.pnl > 0 ? "+" : ""}{formatCurrency(metrics.pnl)}
-                </span>
-                <span className={`font-mono text-xs font-bold mt-1 ${metrics.pnlPercent >= 0 ? "text-green-500" : "text-red-500"}`}>
-                  {metrics.pnlPercent > 0 ? "+" : ""}{metrics.pnlPercent.toFixed(2)}% All-Time Yield
-                </span>
-              </div>
+              <p className="font-mono text-[10px] uppercase tracking-widest text-on-surface-variant/60 mb-2">Total Charges Paid</p>
+              <span className="font-mono text-3xl font-bold text-red-500">
+                 -{formatCurrency(metrics.charges)}
+              </span>
             </div>
           </section>
 
-          {/* Holdings Table */}
+          {/* Trades Ledger */}
           <div className="glass-panel border border-outline-variant/10 rounded-xl overflow-hidden shadow-2xl bg-[#0d0d1a]">
-            {holdings.length === 0 ? (
+            {trades.length === 0 ? (
               <div className="py-24 flex flex-col items-center justify-center gap-3">
                  <div className="w-16 h-16 rounded-full bg-surface-container flex items-center justify-center mb-2">
-                   <span className="material-symbols-outlined text-[32px] text-[#C9A84C]/80">monitoring</span>
+                   <span className="material-symbols-outlined text-[32px] text-[#C9A84C]/80">library_books</span>
                  </div>
-                 <p className="font-headline text-lg text-[#C9A84C]">No Active Holdings</p>
+                 <p className="font-headline text-lg text-[#C9A84C]">Journal Empty</p>
                  <p className="font-mono text-[10px] uppercase tracking-widest text-[#F1F0EC]/40 text-center max-w-sm leading-relaxed">
-                   Your portfolio algorithm is completely empty. Use the Global <strong className="text-[#C9A84C]">+ Quick Add</strong> button in the Top App Bar to execute a stock trade.
+                   Enter your first stock trade outcome hitting the <strong className="text-[#C9A84C]">+ Quick Add</strong> button in the top bar.
                  </p>
               </div>
             ) : (
@@ -206,32 +136,42 @@ export default function StocksPage() {
                 <table className="w-full text-left border-collapse min-w-[800px]">
                   <thead>
                     <tr className="bg-[#12121f] border-b border-outline-variant/10">
+                      <th className="px-6 py-5 font-mono text-[10px] uppercase tracking-widest text-[#C9A84C]/80 font-bold">Date</th>
                       <th className="px-6 py-5 font-mono text-[10px] uppercase tracking-widest text-[#C9A84C]/80 font-bold">Symbol</th>
-                      <th className="px-6 py-5 font-mono text-[10px] uppercase tracking-widest text-[#C9A84C]/80 font-bold text-right">Qty</th>
-                      <th className="px-6 py-5 font-mono text-[10px] uppercase tracking-widest text-[#C9A84C]/80 font-bold text-right">Avg Cost</th>
-                      <th className="px-6 py-5 font-mono text-[10px] uppercase tracking-widest text-[#C9A84C]/80 font-bold text-right">Last Price</th>
-                      <th className="px-6 py-5 font-mono text-[10px] uppercase tracking-widest text-[#C9A84C]/80 font-bold text-right">Invested</th>
-                      <th className="px-6 py-5 font-mono text-[10px] uppercase tracking-widest text-[#C9A84C]/80 font-bold text-right">Value</th>
-                      <th className="px-6 py-5 font-mono text-[10px] uppercase tracking-widest text-[#C9A84C]/80 font-bold text-right">P&L</th>
+                      <th className="px-6 py-5 font-mono text-[10px] uppercase tracking-widest text-[#C9A84C]/80 font-bold">Type</th>
+                      <th className="px-6 py-5 font-mono text-[10px] uppercase tracking-widest text-[#C9A84C]/80 font-bold">Platform</th>
+                      <th className="px-6 py-5 font-mono text-[10px] uppercase tracking-widest text-[#C9A84C]/80 font-bold text-right">Charges Paid</th>
+                      <th className="px-6 py-5 font-mono text-[10px] uppercase tracking-widest text-[#C9A84C]/80 font-bold text-right">Net P&L</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-outline-variant/5">
-                    {holdings.map((h) => (
-                      <tr key={h.symbol} className="group hover:bg-[#1a1a28] transition-colors duration-200">
-                        <td className="px-6 py-4 font-mono text-sm font-bold text-on-surface whitespace-nowrap">
-                          {h.symbol}
-                          <p className="text-[9px] text-[#F1F0EC]/30 font-sans tracking-wide mt-0.5">NSE</p>
+                    {trades.map((t) => (
+                      <tr key={t.id} className="group hover:bg-[#1a1a28] transition-colors duration-200">
+                        <td className="px-6 py-4 font-mono text-xs text-[#F1F0EC]/60 whitespace-nowrap">
+                          {new Date(t.date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
                         </td>
-                        <td className="px-6 py-4 font-mono text-sm text-[#F1F0EC]/80 text-right">{h.qty}</td>
-                        <td className="px-6 py-4 font-mono text-sm text-[#F1F0EC]/80 text-right">{formatCurrency(h.avgCost)}</td>
-                        <td className="px-6 py-4 font-mono text-sm text-[#C9A84C] text-right">{formatCurrency(h.lastPrice)}</td>
-                        <td className="px-6 py-4 font-mono text-sm text-[#F1F0EC]/60 text-right">{formatCurrency(h.investedPaise)}</td>
-                        <td className="px-6 py-4 font-mono text-sm font-bold text-[#F1F0EC] text-right">{formatCurrency(h.currentValuePaise)}</td>
-                        <td className={`px-6 py-4 font-mono text-sm font-bold text-right whitespace-nowrap ${h.unrealizedPnlPaise >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                          {h.unrealizedPnlPaise > 0 ? "+" : ""}{formatCurrency(h.unrealizedPnlPaise)}
-                          <p className="text-[10px] opacity-70 mt-0.5">
-                            {h.unrealizedPnlPaise > 0 ? "+" : ""}{h.pnlPercent.toFixed(2)}%
-                          </p>
+                        <td className="px-6 py-4 font-mono text-sm font-bold text-on-surface whitespace-nowrap">
+                          {t.symbol}
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className={`font-mono text-[9px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-sm border ${
+                            t.tradeType === 'BUY' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' : 'bg-orange-500/10 text-orange-400 border-orange-500/20'
+                          }`}>
+                            {t.tradeType}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 font-mono text-xs text-[#F1F0EC]/80 uppercase tracking-widest">
+                          {t.platform || "N/A"}
+                        </td>
+                        <td className="px-6 py-4 font-mono text-sm text-red-400/80 text-right">
+                          {t.totalChargesPaise > 0 ? `-${formatCurrency(t.totalChargesPaise)}` : "—"}
+                        </td>
+                        <td className={`px-6 py-4 font-mono text-sm font-bold text-right whitespace-nowrap ${t.netPnlPaise > 0 ? 'text-green-400' : t.netPnlPaise < 0 ? 'text-red-400' : 'text-on-surface-variant/50'}`}>
+                          {t.tradeType === "SELL" ? (
+                            <>{t.netPnlPaise > 0 ? "+" : ""}{formatCurrency(t.netPnlPaise)}</>
+                          ) : (
+                            "—"
+                          )}
                         </td>
                       </tr>
                     ))}

@@ -94,8 +94,9 @@ model StockTrade {
   id                String   @id @default(uuid())
   userId            String
   symbol            String
-  qty               Int
-  pricePaise        Int
+  qty               Int      @default(0)
+  pricePaise        Int      @default(0)
+  investedPaise     Int      @default(0)
   brokeragePaise    Int      @default(0)
   sttPaise          Int      @default(0)
   exchangeFeePaise  Int      @default(0)
@@ -104,6 +105,8 @@ model StockTrade {
   gstPaise          Int      @default(0)
   totalChargesPaise Int      @default(0)
   tradeType         String   @default("BUY")
+  platform          String   @default("Zerodha")
+  netPnlPaise       Int      @default(0)
   date              DateTime
   createdAt         DateTime @default(now())
   user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)

@@ -5,9 +5,9 @@ import { buildStockTradePayload } from "../services/stockService.js";
 
 const tradeSchema = z.object({
   symbol: z.string().min(1),
-  qty: z.coerce.number().int().positive(),
-  pricePaise: z.coerce.number().int().positive(),
-  brokeragePaise: z.coerce.number().int().min(0).default(0),
+  platform: z.enum(["Zerodha", "Groww", "Dhan"]).default("Zerodha"),
+  totalChargesPaise: z.coerce.number().int().min(0).default(0),
+  netPnlPaise: z.coerce.number().int().default(0),
   tradeType: z.enum(["BUY", "SELL", "DIVIDEND"]),
   date: z.string().datetime()
 });

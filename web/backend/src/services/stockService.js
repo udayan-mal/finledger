@@ -1,22 +1,11 @@
-import { calculateIndiaEquityCharges } from "@finledger/shared";
-
-export const buildStockTradePayload = ({ symbol, qty, pricePaise, brokeragePaise = 0, tradeType, date, userId }) => {
-  const turnoverPaise = Number(qty) * Number(pricePaise);
-  const charges = calculateIndiaEquityCharges({ turnoverPaise, brokeragePaise, side: tradeType });
-
+export const buildStockTradePayload = ({ symbol, tradeType, platform, totalChargesPaise = 0, netPnlPaise = 0, date, userId }) => {
   return {
     userId,
     symbol: symbol.toUpperCase(),
-    qty: Number(qty),
-    pricePaise: Number(pricePaise),
-    brokeragePaise: Number(brokeragePaise),
-    sttPaise: charges.stt,
-    exchangeFeePaise: charges.exchange,
-    sebiChargePaise: charges.sebi,
-    stampDutyPaise: charges.stampDuty,
-    gstPaise: charges.gst,
-    totalChargesPaise: charges.totalChargesPaise,
     tradeType,
+    platform,
+    totalChargesPaise: Number(totalChargesPaise),
+    netPnlPaise: Number(netPnlPaise),
     date: new Date(date)
   };
 };

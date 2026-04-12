@@ -36,10 +36,9 @@ export default function AddEntryModal({ isOpen, onClose, onSuccess }) {
 
   // Stock Trade specific state
   const [stockSymbol, setStockSymbol] = useState("");
-  const [stockQty, setStockQty] = useState("");
-  const [stockPrice, setStockPrice] = useState("");
   const [stockType, setStockType] = useState("BUY");
-  const [stockBrokerage, setStockBrokerage] = useState("");
+  const [stockPlatform, setStockPlatform] = useState("Zerodha");
+  const [stockCharges, setStockCharges] = useState("");
   
   // P&L for stock sales
   const [stockPnlType, setStockPnlType] = useState("PROFIT");
@@ -144,23 +143,22 @@ export default function AddEntryModal({ isOpen, onClose, onSuccess }) {
         });
 
       } else if (activeTab === "Stock Trade") {
-        if (!stockSymbol || !stockQty || !stockPrice) throw new Error("Missing stock fields");
-        const pricePaise = Math.round(parseFloat(stockPrice) * 100);
+        if (!stockSymbol) throw new Error("Missing stock symbol");
         
-        const brokeragePaise = stockBrokerage ? Math.round(parseFloat(stockBrokerage) * 100) : 0;
+        const totalChargesPaise = stockCharges ? Math.round(parseFloat(stockCharges) * 100) : 0;
+        const netPnlPaise = (stockType === "SELL" && stockPnlAmount) ? Math.round(parseFloat(stockPnlAmount) * 100) : 0;
 
         await api.post("/stock-trades", {
           symbol: stockSymbol.toUpperCase(),
-          qty: parseInt(stockQty, 10),
-          pricePaise,
-          brokeragePaise,
+          platform: stockPlatform,
+          totalChargesPaise,
+          netPnlPaise,
           tradeType: stockType,
           date: new Date(date).toISOString(),
         });
 
         // Automatically create a ledger transaction for stock realized P&L to update Main Dashboard
-        if (stockType === "SELL" && stockPnlAmount && parseFloat(stockPnlAmount) > 0) {
-          const pnlPaise = Math.round(parseFloat(stockPnlAmount) * 100);
+        if (stockType === "SELL" && netPnlPaise > 0) {
           const txnType = stockPnlType === "PROFIT" ? "INCOME" : "EXPENSE";
           const catName = stockPnlType === "PROFIT" ? "Realized Gain" : "Realized Loss";
           
@@ -175,10 +173,10 @@ export default function AddEntryModal({ isOpen, onClose, onSuccess }) {
             accountId: selectedAccountId,
             categoryId: cat.id,
             type: txnType,
-            amountPaise: pnlPaise,
+            amountPaise: netPnlPaise,
             date: new Date(date).toISOString(),
-            description: `${stockSymbol.toUpperCase()} Stock ${stockPnlType === "PROFIT" ? "Profit" : "Loss"}`,
-            note: "Auto-logged from stock sell execution."
+            description: `${stockSymbol.toUpperCase()} Trade ${stockPnlType === "PROFIT" ? "Profit" : "Loss"}`,
+            note: `Platform: ${stockPlatform} | Charges Paid: ₹${(totalChargesPaise/100).toFixed(2)}`
           });
         }
 
@@ -401,49 +399,36 @@ export default function AddEntryModal({ isOpen, onClose, onSuccess }) {
                     </select>
                   </div>
                 </div>
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-2 gap-4 mt-4">
                   <div>
-                    <label className={labelClass}>Quantity</label>
-                    <input 
-                      type="number" 
-                      min="1"
-                      className={inputClass} 
-                      placeholder="Units"
-                      value={stockQty}
-                      onChange={(e) => setStockQty(e.target.value)}
-                      required
-                    />
+                    <label className={labelClass}>Platform</label>
+                    <select 
+                      className={inputClass}
+                      value={stockPlatform}
+                      onChange={(e) => setStockPlatform(e.target.value)}
+                    >
+                      <option value="Zerodha">Zerodha</option>
+                      <option value="Groww">Groww</option>
+                      <option value="Dhan">Dhan</option>
+                    </select>
                   </div>
                   <div>
-                    <label className={labelClass}>Price (₹)</label>
-                    <input 
-                      type="number" 
-                      step="0.01"
-                      min="0"
-                      className={inputClass} 
-                      placeholder="Per unit"
-                      value={stockPrice}
-                      onChange={(e) => setStockPrice(e.target.value)}
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className={labelClass}>Brokerage (₹)</label>
+                    <label className={labelClass}>Total Charges (₹)</label>
                     <input 
                       type="number" 
                       step="0.01"
                       min="0"
                       className={inputClass} 
                       placeholder="e.g. 20"
-                      value={stockBrokerage}
-                      onChange={(e) => setStockBrokerage(e.target.value)}
+                      value={stockCharges}
+                      onChange={(e) => setStockCharges(e.target.value)}
                     />
                   </div>
                 </div>
 
                 {stockType === "SELL" && (
-                  <div className="bg-[#C9A84C]/5 border border-[#C9A84C]/20 p-4 rounded-lg mt-2">
-                    <p className="font-mono text-[10px] uppercase tracking-widest text-[#C9A84C] mb-3">Sync P&L to Main Dashboard (Optional)</p>
+                  <div className="bg-[#C9A84C]/5 border border-[#C9A84C]/20 p-4 rounded-lg mt-4">
+                    <p className="font-mono text-[10px] uppercase tracking-widest text-[#C9A84C] mb-3">Net Realized Outcome</p>
                     <div className="grid grid-cols-3 gap-4">
                       <div>
                         <label className={labelClass}>Result</label>
@@ -457,7 +442,7 @@ export default function AddEntryModal({ isOpen, onClose, onSuccess }) {
                         </select>
                       </div>
                       <div>
-                        <label className={labelClass}>Amount (₹)</label>
+                        <label className={labelClass}>Net Amount (₹)</label>
                         <input 
                           type="number" 
                           step="0.01"
@@ -469,7 +454,7 @@ export default function AddEntryModal({ isOpen, onClose, onSuccess }) {
                         />
                       </div>
                       <div>
-                        <label className={labelClass}>Into Account</label>
+                        <label className={labelClass}>Sync To Account</label>
                         <select 
                           className={inputClass}
                           value={selectedAccountId}
