@@ -14,9 +14,11 @@ export default function MutualFundsPage() {
 
   const fetchFunds = useCallback(async () => {
     try {
-      const { data } = await api.get("/mutual-funds");
-      setFunds(data);
-      calculateMetrics(data);
+      const res = await api.get("/mutual-funds");
+      const fundData = res.data?.data || res.data || [];
+      const finalData = Array.isArray(fundData) ? fundData : [];
+      setFunds(finalData);
+      calculateMetrics(finalData);
     } catch (err) {
       console.error("Failed to fetch mutual funds:", err);
       setError("Failed to decrypt secure ledger data.");

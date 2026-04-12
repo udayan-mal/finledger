@@ -14,8 +14,9 @@ export default function StocksPage() {
 
   const fetchTrades = useCallback(async () => {
     try {
-      const { data } = await api.get("/stock-trades");
-      calculateMetrics(data);
+      const res = await api.get("/stock-trades");
+      const tradeData = res.data?.data || res.data || [];
+      calculateMetrics(Array.isArray(tradeData) ? tradeData : []);
     } catch (err) {
       console.error("Failed to fetch stock trades:", err);
       setError("Failed to decrypt secure ledger data.");
