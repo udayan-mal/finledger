@@ -56,6 +56,35 @@ export default function TransactionsPage() {
     });
   };
 
+  const exportCSV = () => {
+    if (filteredData.length === 0) {
+      alert("No data to export based on current filters.");
+      return;
+    }
+
+    const headers = ["Date", "Type", "Category", "Description", "Note", "Amount (INR)", "Account"];
+    
+    const rows = filteredData.map(tx => {
+       const dateStr = formatDate(tx.date);
+       const category = tx.category?.name || "Uncategorized";
+       const desc = tx.description ? `"${tx.description.replace(/"/g, '""')}"` : "";
+       const note = tx.note ? `"${tx.note.replace(/"/g, '""')}"` : "";
+       const amount = tx.amountPaise / 100;
+       const acct = tx.account?.name || "Unknown";
+       
+       return `"${dateStr}",${tx.type},"${category}",${desc},${note},${amount},"${acct}"`;
+    });
+
+    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows].join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `finledger_transactions_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   // Filtering Logic
   const filteredData = transactions.filter(tx => {
     const desc = (tx.description || "") + " " + (tx.note || "");
@@ -118,7 +147,10 @@ export default function TransactionsPage() {
             <option value="Investment">Investment</option>
           </select>
           
-          <button className="bg-[#C9A84C] text-[#0d0d1a] px-4 py-3 rounded-lg font-mono text-xs uppercase tracking-widest font-bold hover:bg-[#d4b55b] transition-all shadow-[0_4px_14px_0_rgba(201,168,76,0.39)] transform hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50">
+          <button 
+            onClick={exportCSV}
+            className="bg-[#C9A84C] text-[#0d0d1a] px-4 py-3 rounded-lg font-mono text-xs uppercase tracking-widest font-bold hover:bg-[#d4b55b] transition-all shadow-[0_4px_14px_0_rgba(201,168,76,0.39)] transform hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50"
+          >
             Export CSV
           </button>
         </div>
