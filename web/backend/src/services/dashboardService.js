@@ -49,7 +49,7 @@ export const getDashboardSummary = async (userId) => {
     .reduce((sum, tx) => sum + tx.amountPaise, 0);
 
   const monthlyExpensePaise = monthlyTransactions
-    .filter(tx => tx.type === "EXPENSE")
+    .filter(tx => tx.type === "EXPENSE" || tx.type === "INVESTMENT")
     .reduce((sum, tx) => sum + tx.amountPaise, 0);
 
   const savingsRatePercent = monthlyIncomePaise > 0
@@ -79,7 +79,7 @@ export const getDashboardSummary = async (userId) => {
 
   // Get expense breakdown by category (current month)
   const expenseBreakdown = calculateExpenseBreakdown(
-    monthlyTransactions.filter(tx => tx.type === "EXPENSE")
+    monthlyTransactions.filter(tx => tx.type === "EXPENSE" || tx.type === "INVESTMENT")
   );
 
   // Get holdings for table
@@ -154,7 +154,7 @@ function calculateCashFlowByMonth(transactions) {
       .reduce((sum, tx) => sum + tx.amountPaise, 0);
 
     const expense = transactions
-      .filter(tx => tx.type === "EXPENSE" && tx.date >= monthStart && tx.date < monthEnd)
+      .filter(tx => (tx.type === "EXPENSE" || tx.type === "INVESTMENT") && tx.date >= monthStart && tx.date < monthEnd)
       .reduce((sum, tx) => sum + tx.amountPaise, 0);
 
     return {

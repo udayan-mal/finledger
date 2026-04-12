@@ -148,30 +148,40 @@ export default function AddEntryModal({ isOpen, onClose, onSuccess }) {
         const totalChargesPaise = stockCharges ? Math.round(parseFloat(stockCharges) * 100) : 0;
         const netPnlPaise = (stockType === "SELL" && stockPnlAmount) ? Math.round(parseFloat(stockPnlAmount) * 100) : 0;
 
-        // Automatically create a ledger transaction for stock realized P&L to update Main Dashboard
+        // Automatically create a ledger transaction for stock activity to update Main Dashboard
         let syncTxId = undefined;
-        if (stockType === "SELL" && netPnlPaise > 0) {
-          const txnType = stockPnlType === "PROFIT" ? "INCOME" : "EXPENSE";
-          const catName = stockPnlType === "PROFIT" ? "Realized Gain" : "Realized Loss";
-          
-          let cat = categories.find(c => c.name === catName && c.type === txnType);
-          if (!cat) {
-            const newCat = await api.post("/categories", { name: catName, type: txnType });
-            cat = newCat.data.data || newCat.data;
-          }
+        let txnType = "";
+        let amountPaise = 0;
+        let catName = "Stock Trade";
 
-          // Create transaction FIRST
-          const txRes = await api.post("/transactions", {
-            accountId: selectedAccountId,
-            categoryId: cat.id,
-            type: txnType,
-            amountPaise: netPnlPaise,
-            date: new Date(date).toISOString(),
-            description: `${stockSymbol.toUpperCase()} Trade ${stockPnlType === "PROFIT" ? "Profit" : "Loss"}`,
-            note: `Platform: ${stockPlatform} | Charges Paid: ₹${(totalChargesPaise/100).toFixed(2)}`
-          });
-          syncTxId = txRes.data.data.id;
+        if (stockType === "BUY") {
+           txnType = "INVESTMENT";
+           amountPaise = totalChargesPaise; // Since only charges are tracked in the mini-journal
+           catName = "Stock Trade";
+        } else {
+           txnType = stockPnlType === "PROFIT" ? "INCOME" : "EXPENSE";
+           amountPaise = netPnlPaise;
+           catName = stockPnlType === "PROFIT" ? "Realized Gain" : "Realized Loss";
         }
+
+        // Even for 0 amounts, user wants a ledger trace of the activity to show up
+        let cat = categories.find(c => c.name === catName && c.type === txnType);
+        if (!cat) {
+          const newCat = await api.post("/categories", { name: catName, type: txnType });
+          cat = newCat.data.data || newCat.data;
+        }
+
+        // Create transaction FIRST
+        const txRes = await api.post("/transactions", {
+          accountId: selectedAccountId,
+          categoryId: cat.id,
+          type: txnType,
+          amountPaise: amountPaise,
+          date: new Date(date).toISOString(),
+          description: `${stockSymbol.toUpperCase()} ${stockType}`,
+          note: `Platform: ${stockPlatform} | ${stockType === "BUY" ? "Charges Paid" : "Net P&L"}`
+        });
+        syncTxId = txRes.data.data.id;
 
         await api.post("/stock-trades", {
           symbol: stockSymbol.toUpperCase(),
