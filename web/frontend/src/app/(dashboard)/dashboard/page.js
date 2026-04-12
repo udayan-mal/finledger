@@ -73,7 +73,16 @@ function DashMetric({ label, value, subtitle, accent = false, valueColor, iconCo
 /* ──────────────────────────────────────────────
    Expense Donut — pure CSS ring chart
    ────────────────────────────────────────────── */
-const DONUT_COLORS = ["#e6c364", "#8b7832", "#c9a84c", "#6b5e30", "#a88d3e"];
+const VIBRANT_PALETTE = ["#3b82f6", "#8b5cf6", "#14b8a6", "#f97316", "#ec4899", "#0ea5e9"];
+
+const getColorForCategory = (name, index) => {
+  const n = (name || "").toLowerCase();
+  if (n.includes("loss")) return "#f87171"; // Red
+  if (n.includes("gain") || n.includes("profit") || n.includes("income")) return "#4ade80"; // Green
+  if (n.includes("mutual fund") || n.includes("investment")) return "#C9A84C"; // Gold
+  // Predictable, distinct palette for general expenses
+  return VIBRANT_PALETTE[index % VIBRANT_PALETTE.length];
+};
 
 function ExpenseDonut({ breakdown, totalExpense }) {
   if (!breakdown || breakdown.length === 0) {
@@ -92,7 +101,7 @@ function ExpenseDonut({ breakdown, totalExpense }) {
   const segments = breakdown.map((item, i) => {
     const start = cumulative;
     cumulative += parseFloat(item.percentage);
-    return `${DONUT_COLORS[i % DONUT_COLORS.length]} ${start}% ${cumulative}%`;
+    return `${getColorForCategory(item.name, i)} ${start}% ${cumulative}%`;
   });
   const remaining = 100 - cumulative;
   if (remaining > 0) segments.push(`rgba(77,70,55,0.15) ${cumulative}% 100%`);
@@ -120,7 +129,7 @@ function ExpenseDonut({ breakdown, totalExpense }) {
         {breakdown.map((item, i) => (
           <div key={item.name} className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full" style={{ background: DONUT_COLORS[i % DONUT_COLORS.length] }} />
+              <div className="w-2 h-2 rounded-full" style={{ background: getColorForCategory(item.name, i) }} />
               <span className="text-xs text-on-surface truncate max-w-[120px]">{item.name}</span>
             </div>
             <span className="font-mono text-[10px] text-on-surface-variant">{item.percentage}%</span>
