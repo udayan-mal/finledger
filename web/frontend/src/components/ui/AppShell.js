@@ -17,16 +17,11 @@ const navGroups = [
     ]
   },
   {
-    title: "Transactions",
+    title: "Journals & Ledgers",
     items: [
-      { href: "/transactions", icon: "receipt_long", label: "All Transactions" }
-    ]
-  },
-  {
-    title: "Investments",
-    items: [
-      { href: "/stocks", icon: "monitoring", label: "Stock Market" },
-      { href: "/mutual-funds", icon: "account_balance", label: "Mutual Funds" }
+      { href: "/transactions", icon: "receipt_long", label: "Master Ledger" },
+      { href: "/stocks", icon: "monitoring", label: "Stock Journal" },
+      { href: "/mutual-funds", icon: "account_balance", label: "Fund Journal" }
     ]
   },
   {
@@ -55,8 +50,8 @@ const navGroups = [
 
 const mobileNavItems = [
   { href: "/dashboard", icon: "dashboard", label: "Home" },
-  { href: "/transactions", icon: "receipt_long", label: "History" },
-  { href: "/mutual-funds", icon: "account_balance", label: "Funds" },
+  { href: "/transactions", icon: "receipt_long", label: "Ledger" },
+  { href: "/stocks", icon: "monitoring", label: "Journal" },
   { href: "/reports", icon: "query_stats", label: "Growth" },
   { href: "/settings", icon: "settings", label: "Menu" }
 ];
