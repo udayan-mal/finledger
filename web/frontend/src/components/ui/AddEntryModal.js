@@ -40,6 +40,10 @@ export default function AddEntryModal({ isOpen, onClose, onSuccess }) {
   const [stockPrice, setStockPrice] = useState("");
   const [stockType, setStockType] = useState("BUY");
   const [stockBrokerage, setStockBrokerage] = useState("");
+  
+  // P&L for stock sales
+  const [stockPnlType, setStockPnlType] = useState("PROFIT");
+  const [stockPnlAmount, setStockPnlAmount] = useState("");
 
   // Mutual Fund specific state
   const [fundName, setFundName] = useState("");
@@ -153,6 +157,30 @@ export default function AddEntryModal({ isOpen, onClose, onSuccess }) {
           tradeType: stockType,
           date: new Date(date).toISOString(),
         });
+
+        // Automatically create a ledger transaction for stock realized P&L to update Main Dashboard
+        if (stockType === "SELL" && stockPnlAmount && parseFloat(stockPnlAmount) > 0) {
+          const pnlPaise = Math.round(parseFloat(stockPnlAmount) * 100);
+          const txnType = stockPnlType === "PROFIT" ? "INCOME" : "EXPENSE";
+          const catName = stockPnlType === "PROFIT" ? "Realized Gain" : "Realized Loss";
+          
+          let cat = categories.find(c => c.name === catName && c.type === txnType);
+          if (!cat) {
+            const newCat = await api.post("/categories", { name: catName, type: txnType });
+            cat = newCat.data.data || newCat.data;
+          }
+
+          // We use the globally selectedAccountId (defaulting to the same one standard transactions use)
+          await api.post("/transactions", {
+            accountId: selectedAccountId,
+            categoryId: cat.id,
+            type: txnType,
+            amountPaise: pnlPaise,
+            date: new Date(date).toISOString(),
+            description: `${stockSymbol.toUpperCase()} Stock ${stockPnlType === "PROFIT" ? "Profit" : "Loss"}`,
+            note: "Auto-logged from stock sell execution."
+          });
+        }
 
       } else if (activeTab === "Mutual Fund") {
         if (!fundName || !fundUnits || !fundNav) throw new Error("Missing fund fields");
@@ -412,6 +440,49 @@ export default function AddEntryModal({ isOpen, onClose, onSuccess }) {
                     />
                   </div>
                 </div>
+
+                {stockType === "SELL" && (
+                  <div className="bg-[#C9A84C]/5 border border-[#C9A84C]/20 p-4 rounded-lg mt-2">
+                    <p className="font-mono text-[10px] uppercase tracking-widest text-[#C9A84C] mb-3">Sync P&L to Main Dashboard (Optional)</p>
+                    <div className="grid grid-cols-3 gap-4">
+                      <div>
+                        <label className={labelClass}>Result</label>
+                        <select 
+                          className={inputClass}
+                          value={stockPnlType}
+                          onChange={(e) => setStockPnlType(e.target.value)}
+                        >
+                          <option value="PROFIT">Profit</option>
+                          <option value="LOSS">Loss</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className={labelClass}>Amount (₹)</label>
+                        <input 
+                          type="number" 
+                          step="0.01"
+                          min="0"
+                          className={inputClass} 
+                          placeholder="e.g. 500"
+                          value={stockPnlAmount}
+                          onChange={(e) => setStockPnlAmount(e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <label className={labelClass}>Into Account</label>
+                        <select 
+                          className={inputClass}
+                          value={selectedAccountId}
+                          onChange={(e) => setSelectedAccountId(e.target.value)}
+                        >
+                          {accounts.map(a => (
+                            <option key={a.id} value={a.id}>{a.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </>
             )}
 
