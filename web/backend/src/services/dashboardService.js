@@ -78,9 +78,16 @@ export const getDashboardSummary = async (userId) => {
   const cashFlow = calculateCashFlowByMonth(allTransactionsLast6M);
 
   // Get expense breakdown by category (current month)
-  const expenseBreakdown = calculateExpenseBreakdown(
+  const expenseBreakdown = calculateCategoryBreakdown(
     monthlyTransactions.filter(tx => tx.type === "EXPENSE" || tx.type === "INVESTMENT")
   );
+
+  const incomeBreakdown = calculateCategoryBreakdown(
+    monthlyTransactions.filter(tx => tx.type === "INCOME")
+  );
+
+  const totalIncomeCount = allTransactionsLast6M.filter(tx => tx.type === "INCOME").length;
+  const totalExpenseCount = allTransactionsLast6M.filter(tx => tx.type === "EXPENSE" || tx.type === "INVESTMENT").length;
 
   // Get holdings for table
   const holdings = mutualFunds.map(mf => ({
@@ -122,10 +129,13 @@ export const getDashboardSummary = async (userId) => {
       portfolioValuePaise,
       bankCashPaise,
       savingsRatePercent: savingsRatePercent.toFixed(1),
-      portfolioPnlPercent: portfolioPnlPercent.toFixed(1)
+      portfolioPnlPercent: portfolioPnlPercent.toFixed(1),
+      totalIncomeCount,
+      totalExpenseCount
     },
     cashFlow,
     expenseBreakdown,
+    incomeBreakdown,
     holdings: holdings.slice(0, 10),
     stocks: stocks.slice(0, 10),
     upcoming
@@ -166,11 +176,11 @@ function calculateCashFlowByMonth(transactions) {
   });
 }
 
-// Helper: Calculate expense breakdown by category
-function calculateExpenseBreakdown(expenses) {
+// Helper: Calculate breakdown by category
+function calculateCategoryBreakdown(transactions) {
   const categoryTotals = {};
 
-  expenses.forEach(tx => {
+  transactions.forEach(tx => {
     const categoryName = tx.category?.name || "Uncategorized";
     if (!categoryTotals[categoryName]) {
       categoryTotals[categoryName] = 0;
@@ -187,5 +197,5 @@ function calculateExpenseBreakdown(expenses) {
       percentage: total > 0 ? ((amount / total) * 100).toFixed(1) : 0
     }))
     .sort((a, b) => b.amount - a.amount)
-    .slice(0, 5);
+    .slice(0, 8); // Expanded from 5 to 8 for better visibility
 }

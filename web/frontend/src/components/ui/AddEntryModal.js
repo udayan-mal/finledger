@@ -11,7 +11,7 @@ const DEFAULT_EXPENSE_CATEGORIES = [
   "Clothing", "Electronics", "Insurance", "Rent", "Other Expense"
 ];
 
-const DEFAULT_INCOME_CATEGORIES = ["Salary", "Business", "Freelance", "Investment", "Other Income"];
+const DEFAULT_INCOME_CATEGORIES = ["Salary", "Business", "Freelance", "Investment", "Cashback", "Other Income"];
 
 export default function AddEntryModal({ isOpen, onClose, onSuccess }) {
   const [activeTab, setActiveTab] = useState("Transaction");

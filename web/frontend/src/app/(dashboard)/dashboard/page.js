@@ -71,27 +71,33 @@ function DashMetric({ label, value, subtitle, accent = false, valueColor, iconCo
 }
 
 /* ──────────────────────────────────────────────
-   Expense Donut — pure CSS ring chart
+   Category Donut — pure CSS ring chart
    ────────────────────────────────────────────── */
-const VIBRANT_PALETTE = ["#3b82f6", "#8b5cf6", "#14b8a6", "#f97316", "#ec4899", "#0ea5e9"];
+const VIBRANT_PALETTE = ["#3b82f6", "#8b5cf6", "#14b8a6", "#f97316", "#ec4899", "#0ea5e9", "#f43f5e", "#84cc16"];
+const INCOME_PALETTE = ["#4ade80", "#2dd4bf", "#10b981", "#60a5fa", "#a78bfa", "#f472b6", "#fbbf24", "#34d399"];
 
-const getColorForCategory = (name, index) => {
+const getColorForCategory = (name, index, type = "expense") => {
   const n = (name || "").toLowerCase();
-  if (n.includes("loss")) return "#f87171"; // Red
-  if (n.includes("gain") || n.includes("profit") || n.includes("income")) return "#4ade80"; // Green
-  if (n.includes("mutual fund") || n.includes("investment")) return "#C9A84C"; // Gold
-  // Predictable, distinct palette for general expenses
-  return VIBRANT_PALETTE[index % VIBRANT_PALETTE.length];
+  
+  if (type === "income") {
+    if (n.includes("salary") || n.includes("gain") || n.includes("profit") || n.includes("cashback")) return "#4ade80"; // Bright Green
+    return INCOME_PALETTE[index % INCOME_PALETTE.length];
+  } else {
+    if (n.includes("loss")) return "#f87171"; // Red
+    if (n.includes("gain") || n.includes("profit") || n.includes("income")) return "#4ade80"; // Green
+    if (n.includes("mutual fund") || n.includes("investment")) return "#C9A84C"; // Gold
+    return VIBRANT_PALETTE[index % VIBRANT_PALETTE.length];
+  }
 };
 
-function ExpenseDonut({ breakdown, totalExpense }) {
+function CategoryDonut({ breakdown, totalAmount, type = "expense", emptyMessage = "Add transactions" }) {
   if (!breakdown || breakdown.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-3">
         <div className="w-32 h-32 rounded-full border-[8px] border-outline-variant/15 flex items-center justify-center">
           <span className="font-mono text-sm text-on-surface-variant/40">No data</span>
         </div>
-        <p className="text-on-surface-variant/40 text-xs font-mono text-center">Add expenses to see breakdown</p>
+        <p className="text-on-surface-variant/40 text-xs font-mono text-center">{emptyMessage}</p>
       </div>
     );
   }
@@ -101,7 +107,7 @@ function ExpenseDonut({ breakdown, totalExpense }) {
   const segments = breakdown.map((item, i) => {
     const start = cumulative;
     cumulative += parseFloat(item.percentage);
-    return `${getColorForCategory(item.name, i)} ${start}% ${cumulative}%`;
+    return `${getColorForCategory(item.name, i, type)} ${start}% ${cumulative}%`;
   });
   const remaining = 100 - cumulative;
   if (remaining > 0) segments.push(`rgba(77,70,55,0.15) ${cumulative}% 100%`);
@@ -119,18 +125,18 @@ function ExpenseDonut({ breakdown, totalExpense }) {
           }}
         />
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="font-mono text-sm font-bold text-on-surface">{fmtINR(totalExpense * 100)}</span>
+          <span className={`font-mono text-sm font-bold ${type === "income" ? "text-green-400" : "text-on-surface"}`}>{fmtINR(totalAmount * 100)}</span>
           <span className="font-mono text-[8px] text-on-surface-variant/50 uppercase">This Month</span>
         </div>
       </div>
 
       {/* Legend */}
-      <div className="space-y-2 w-full">
+      <div className="space-y-2 w-full max-h-[140px] overflow-y-auto no-scrollbar pr-2">
         {breakdown.map((item, i) => (
           <div key={item.name} className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full" style={{ background: getColorForCategory(item.name, i) }} />
-              <span className="text-xs text-on-surface truncate max-w-[120px]">{item.name}</span>
+              <div className="w-2 h-2 rounded-full shadow-sm" style={{ background: getColorForCategory(item.name, i, type) }} />
+              <span className="text-xs text-on-surface truncate max-w-[120px]" title={item.name}>{item.name}</span>
             </div>
             <span className="font-mono text-[10px] text-on-surface-variant">{item.percentage}%</span>
           </div>
@@ -175,9 +181,10 @@ export default function DashboardPage() {
   const m = data?.metrics || {};
   const cashFlow = data?.cashFlow || [];
   const expenseBreakdown = data?.expenseBreakdown || [];
-  const upcoming = data?.upcoming || [];
+  const incomeBreakdown = data?.incomeBreakdown || [];
 
   const totalMonthlyExpense = expenseBreakdown.reduce((s, e) => s + (e.amount || 0), 0);
+  const totalMonthlyIncome = incomeBreakdown.reduce((s, e) => s + (e.amount || 0), 0);
 
   return (
     <div className="space-y-10">
@@ -250,12 +257,27 @@ export default function DashboardPage() {
       <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
         {/* ─ Cash Flow — Last 6 Months ─ */}
-        <div className="glass-panel rounded-xl p-6 lg:p-8">
-          <div className="flex items-center gap-2 mb-1">
-            <span className="material-symbols-outlined text-tertiary text-[20px]">bar_chart</span>
-            <h2 className="font-headline text-xl text-on-surface">Cash Flow — Last 6 Months</h2>
+        <div className="glass-panel rounded-xl p-6 lg:p-8 relative">
+          <div className="flex items-center justify-between mb-1">
+            <div className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-tertiary text-[20px]">bar_chart</span>
+              <h2 className="font-headline text-xl text-on-surface">Cash Flow — Last 6 Months</h2>
+            </div>
           </div>
-          <p className="text-on-surface-variant/40 text-xs font-mono mb-6">Income vs Expenses by month</p>
+          <div className="flex items-center justify-between mb-6">
+            <p className="text-on-surface-variant/40 text-xs font-mono">Income vs Expenses by month</p>
+            <div className="flex items-center gap-4 border border-outline-variant/10 bg-surface-container-low px-3 py-1.5 rounded-lg">
+              <div className="flex items-center gap-1.5">
+                <div className="w-1.5 h-1.5 rounded-full bg-green-400"></div>
+                <span className="font-mono text-[10px] text-on-surface-variant/60 uppercase tracking-widest">No. of Income <span className="text-on-surface font-bold ml-1">{m.totalIncomeCount || 0}</span></span>
+              </div>
+              <div className="w-px h-3 bg-outline-variant/20"></div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-1.5 h-1.5 rounded-full bg-red-400"></div>
+                <span className="font-mono text-[10px] text-on-surface-variant/60 uppercase tracking-widest">No. of Expenses <span className="text-on-surface font-bold ml-1">{m.totalExpenseCount || 0}</span></span>
+              </div>
+            </div>
+          </div>
 
           {cashFlow.length > 0 && cashFlow.some(d => d.income > 0 || d.expense > 0) ? (
             <div className="h-72">
@@ -271,14 +293,17 @@ export default function DashboardPage() {
 
         {/* ─ Expense Breakdown ─ */}
         <div className="glass-panel rounded-xl p-6 lg:p-8">
-          <div className="flex items-center gap-2 mb-1">
-            <span className="material-symbols-outlined text-tertiary text-[20px]">donut_large</span>
-            <h2 className="font-headline text-xl text-on-surface">Expense Breakdown</h2>
+          <div className="flex items-center justify-between mb-1">
+            <div className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-red-400/80 text-[20px]">pie_chart</span>
+              <h2 className="font-headline text-xl text-on-surface">Expense Breakdown</h2>
+            </div>
+            <p className="text-red-400/80 font-mono text-xs">{fmtINR(totalMonthlyExpense * 100)}</p>
           </div>
           <p className="text-on-surface-variant/40 text-xs font-mono mb-6">Category-wise spending this month</p>
 
           <div className="flex items-center justify-center min-h-[260px]">
-            <ExpenseDonut breakdown={expenseBreakdown} totalExpense={totalMonthlyExpense} />
+            <CategoryDonut breakdown={expenseBreakdown} totalAmount={totalMonthlyExpense} type="expense" emptyMessage="Add expenses to see breakdown" />
           </div>
         </div>
 
@@ -320,57 +345,20 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* ─ Upcoming Recurring ─ */}
+        {/* ─ Income Breakdown ─ */}
         <div className="glass-panel rounded-xl p-6 lg:p-8">
-          <div className="flex items-center gap-2 mb-1">
-            <span className="material-symbols-outlined text-tertiary text-[20px]">event_repeat</span>
-            <h2 className="font-headline text-xl text-on-surface">Upcoming Recurring</h2>
+          <div className="flex items-center justify-between mb-1">
+            <div className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-green-400/80 text-[20px]">donut_large</span>
+              <h2 className="font-headline text-xl text-on-surface">Income Breakdown</h2>
+            </div>
+            <p className="text-green-400/80 font-mono text-xs">+{fmtINR(totalMonthlyIncome * 100)}</p>
           </div>
-          <p className="text-on-surface-variant/40 text-xs font-mono mb-6">Scheduled bills and subscriptions</p>
+          <p className="text-on-surface-variant/40 text-xs font-mono mb-6">Sources of revenue this month</p>
 
-          {upcoming.length > 0 ? (
-            <div className="space-y-3">
-              {upcoming.map((item) => {
-                const due = new Date(item.nextDue);
-                const dueStr = due.toLocaleDateString("en-IN", { month: "short", day: "numeric" });
-                const daysUntil = Math.ceil((due - new Date()) / (1000 * 60 * 60 * 24));
-                const urgent = daysUntil <= 3;
-
-                return (
-                  <div key={item.id} className="flex items-center justify-between p-3 rounded-lg bg-surface-container/40 hover:bg-surface-container/70 transition-colors">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${urgent ? "bg-red-500/10" : "bg-surface-container-highest/50"}`}>
-                        <span className={`material-symbols-outlined text-[16px] ${urgent ? "text-red-400" : "text-on-surface-variant/50"}`}>
-                          {item.frequency === "Monthly" ? "calendar_month" : "event"}
-                        </span>
-                      </div>
-                      <div>
-                        <p className="text-sm text-on-surface">{item.name}</p>
-                        <p className="font-mono text-[10px] text-on-surface-variant/50">
-                          {dueStr} · {item.frequency}
-                          {urgent && <span className="text-red-400 ml-1">({daysUntil <= 0 ? "Overdue" : `${daysUntil}d`})</span>}
-                        </p>
-                      </div>
-                    </div>
-                    <span className="font-mono text-sm font-bold text-on-surface">{fmtINR(item.amountPaise)}</span>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="flex flex-col items-center justify-center min-h-[200px] gap-3">
-              <span className="material-symbols-outlined text-5xl text-on-surface-variant/15">event_repeat</span>
-              <p className="text-on-surface-variant/40 text-xs font-mono text-center">
-                No recurring expenses yet.<br/>Add bills and subscriptions to track them here.
-              </p>
-              <Link
-                href="/recurring"
-                className="mt-2 px-4 py-2 rounded-lg border border-outline-variant/20 text-xs font-mono text-on-surface-variant hover:border-tertiary hover:text-tertiary transition-colors"
-              >
-                Manage Recurring →
-              </Link>
-            </div>
-          )}
+          <div className="flex items-center justify-center min-h-[260px]">
+            <CategoryDonut breakdown={incomeBreakdown} totalAmount={totalMonthlyIncome} type="income" emptyMessage="Add income transactions" />
+          </div>
         </div>
       </section>
 
