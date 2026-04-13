@@ -63,3 +63,25 @@ body {
 *::-webkit-scrollbar-track {
   background: #0d0d1a;
 }
+
+@media print {
+  body {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    background-color: #12121f !important;
+    color: #e3e0f4 !important;
+  }
+  .glass-panel {
+    background-color: #1a1a28 !important;
+    backdrop-filter: none !important;
+    border: 1px solid rgba(255,255,255,0.1) !important;
+    box-shadow: none !important;
+  }
+  nav, aside, header, .print\:hidden {
+    display: none !important;
+  }
+  @page {
+    margin: 1cm;
+    size: auto;
+  }
+}

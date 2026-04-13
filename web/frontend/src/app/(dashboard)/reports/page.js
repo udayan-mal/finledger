@@ -93,7 +93,7 @@ export default function ReportsPage() {
             className={`px-4 py-2 rounded-lg font-mono text-[10px] uppercase tracking-widest transition-all duration-200 ${
               activePeriod === p.key
                 ? "bg-[#C9A84C] text-[#0d0d1a] font-bold shadow-[0_2px_10px_0_rgba(201,168,76,0.2)]"
-                : "text-[#F1F0EC]/40 hover:text-[#F1F0EC] hover:bg-[#1a1a28] border border-outline-variant/10"
+                : "text-[#F1F0EC]/40 hover:text-[#F1F0EC] hover:bg-[#1a1a28] border border-outline-variant/10 print:hidden"
             }`}
           >
             {p.label}
@@ -176,7 +176,7 @@ export default function ReportsPage() {
           </div>
 
           {/* Export Buttons */}
-          <div className="flex gap-3">
+          <div className="flex gap-3 print:hidden">
             <button
               onClick={() => window.print()}
               className="border border-outline-variant/20 px-5 py-2.5 rounded-lg text-sm text-on-surface hover:border-[#C9A84C] transition-colors flex items-center gap-2"
