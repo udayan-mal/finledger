@@ -9,3 +9,5 @@ coverage/
 .DS_Store
 .vscode/settings.json
 web/backend/prisma/migrations/
+web/backend/prisma/dev.db
+web/backend/prisma/dev.db-journal
