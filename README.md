@@ -1,52 +1,77 @@
 # FinLedger
 
-Institutional-style personal finance tracker built as a production-ready full-stack monorepo.
+**Institutional-grade personal wealth management platform** built with modern full-stack architecture. A production-ready monorepo demonstrating strong engineering fundamentals across authentication, financial data modeling, and responsive UI/UX.
 
 ![Status](https://img.shields.io/badge/status-active-success?style=for-the-badge)
 ![Frontend](https://img.shields.io/badge/frontend-Next.js%2014-black?style=for-the-badge&logo=next.js)
 ![Backend](https://img.shields.io/badge/backend-Express%20API-339933?style=for-the-badge&logo=nodedotjs)
 ![Database](https://img.shields.io/badge/database-Prisma-2D3748?style=for-the-badge&logo=prisma)
+![License](https://img.shields.io/badge/license-MIT-green?style=for-the-badge)
 
-## Why This Project Stands Out
+## Overview
 
-FinLedger demonstrates strong end-to-end engineering across product design, backend architecture, and financial-domain correctness.
+FinLedger is a complete end-to-end financial application showcasing:
 
-- Full-stack monorepo with clear frontend/backend boundaries.
-- Authentication with JWT access tokens and refresh-cookie flow.
-- Financial calculations stored in integer paise to avoid float precision bugs.
-- Real dashboard aggregation for net worth, cash flow, and category analytics.
-- Responsive, polished UI with custom design language.
-- AI advisor integration capability (Gemini) through backend services.
+- **Full-stack architecture**: Decoupled frontend and REST API with clear separation of concerns
+- **Secure authentication**: JWT-based flows with httpOnly refresh tokens and access token rotation
+- **Financial precision**: Integer-based currency storage (paise/cents) eliminating floating-point errors
+- **Dynamic analytics**: Real-time dashboard with net worth, cash flow trends, and category breakdowns
+- **Modern UI/UX**: Custom design system built with Tailwind CSS and Framer Motion animations
+- **AI integration**: Backend-driven Gemini API integration for contextual financial advice
 
-## Tech Stack
+## Technology Stack
 
-- Frontend: Next.js 14 App Router, React 18, Tailwind CSS, Framer Motion, Recharts
-- Backend: Node.js, Express, Prisma ORM, Redis-ready middleware, JWT auth
-- Database: SQLite for local development, PostgreSQL for production
-- Workspace: npm workspaces monorepo (`web/frontend`, `web/backend`, `shared`)
+| Layer | Technology |
+|-------|-----------|
+| **Frontend** | Next.js 14 (App Router), React 18, Tailwind CSS, Framer Motion, Recharts, Zustand |
+| **Backend** | Node.js, Express.js, Prisma ORM, JWT auth, Redis-ready |
+| **Database** | SQLite (development), PostgreSQL (production) |
+| **Architecture** | npm workspaces monorepo (`web/frontend`, `web/backend`, `shared`) |
 
-## Core Features
+## Key Features
 
-- Dashboard with net worth, income/expense trends, savings rate, and portfolio metrics
-- Accounts, transactions, budgets, goals, recurring expenses
-- Stocks and mutual fund tracking
-- Report views and financial summaries
-- Secure login/register/profile flows
+| Feature | Description |
+|---------|-------------|
+| **Dashboard** | Real-time net worth, savings rate, monthly cash flow trends, and financial health metrics |
+| **Transaction Management** | Add income/expenses, bulk CSV imports, automatic categorization |
+| **Portfolio Tracking** | Monitor individual stock trades and mutual fund SIPs with P&L calculations |
+| **Budget & Goals** | Set savings targets, monitor recurring expenses, track progress |
+| **Reports** | Period-based analytics with category breakdowns and trends |
+| **Secure Auth** | Register, login, profile management with token-based session handling |
 
-## Local Setup
+## Getting Started
 
-1. Install dependencies:
+### Prerequisites
+
+- Node.js 18+ ([download](https://nodejs.org/))
+- Git
+- A modern terminal (PowerShell/Bash/Zsh)
+
+### Quick Start
+
+**1. Clone and install:**
 
 ```bash
+git clone https://github.com/udayan-mal/finledger.git
+cd finledger
 npm install
 ```
 
-2. Create environment files:
+**2. Configure environment variables:**
 
-- `web/backend/.env` from `web/backend/.env.example`
-- `web/frontend/.env` from `web/frontend/.env.example`
+Create `.env` files from examples (⚠️ **Security Note** — `.env` files are **never committed** to GitHub, they contain secrets):
 
-3. Initialize database and Prisma client:
+```bash
+# Backend
+cp web/backend/.env.example web/backend/.env
+
+# Frontend  
+cp web/frontend/.env.example web/frontend/.env
+```
+
+Edit each `.env` file with your configuration (API keys, database URLs, etc.).
+
+**3. Initialize database:**
 
 ```bash
 cd web/backend
@@ -55,125 +80,336 @@ npx prisma db push
 cd ../..
 ```
 
-4. Run frontend and backend together:
+**4. Start development servers:**
 
 ```bash
 npm run dev
 ```
 
-5. Open app:
+**5. Access the application:**
 
-- Frontend: `http://localhost:3000`
-- Backend health: `http://localhost:4000/health`
+- **Frontend**: http://localhost:3000
+- **Backend Health**: http://localhost:4000/health
 
-## Portfolio / Resume Summary (Copy Ready)
+## For Your Resume / Portfolio
 
-- Built a production-style wealth management platform using Next.js 14, Express, Prisma, and JWT auth.
-- Implemented robust financial data modeling using integer-based currency storage for precision-safe calculations.
-- Designed and shipped an analytics dashboard with live metrics, trend charts, and category-level breakdowns.
-- Architected a decoupled REST API backend and integrated secure frontend token workflows.
+**Technical Highlights:**
 
-## Deployment Guide (Neon + Render + Vercel)
+- Designed and deployed a full-stack financial platform using modern JavaScript frameworks (Next.js, Express, React)
+- Implemented secure JWT-based authentication with httpOnly cookies and token refresh flows
+- Built complex financial data models using integer-based currency storage to ensure calculation precision
+- Developed real-time dashboard with aggregated metrics across multiple asset classes (cash, stocks, mutual funds)
+- Architected a decoupled REST API backend independent of the frontend, enabling future mobile app expansion
 
-### 1. Prepare Production Database (Neon)
+**Professional Summary (30 seconds):**
 
-1. Create a Neon project and copy the connection string.
-2. Use SSL-enabled URL format:
+> "FinLedger is a production-ready wealth management platform demonstrating full-stack expertise. It showcases secure authentication flows, precise financial calculations, real-time analytics, and modern UI/UX patterns. Built with Next.js 14, Express, Prisma, and Tailwind CSS."
 
-```text
-postgresql://USER:PASSWORD@HOST/DBNAME?sslmode=require
+## Production Deployment
+
+This section guides you through deploying FinLedger to production using Neon (PostgreSQL), Render (backend API), and Vercel (frontend).
+
+### Architecture Diagram
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    Vercel                               │
+│            (Frontend: Next.js 14 App)                   │
+│              https://finledger.vercel.app               │
+│                                                         │
+│  NEXT_PUBLIC_API_URL → Render Backend URL              │
+└─────────────┬───────────────────────────────────────────┘
+              │ (HTTPS REST API calls)
+              │
+┌─────────────▼───────────────────────────────────────────┐
+│                    Render                               │
+│          (Backend: Express.js API Server)               │
+│        https://<service>.onrender.com/api/v1            │
+│                                                         │
+│  DATABASE_URL → Neon PostgreSQL Connection             │
+└─────────────┬───────────────────────────────────────────┘
+              │ (SQL queries)
+              │
+┌─────────────▼───────────────────────────────────────────┐
+│                    Neon                                 │
+│         (Managed PostgreSQL Database)                   │
+│       Automatic backups, SSL encryption                 │
+└─────────────────────────────────────────────────────────┘
 ```
 
-### 2. Switch Prisma to PostgreSQL Before Deploy
+### Step-by-Step Deployment Guide
 
-In `web/backend/prisma/schema.prisma`, set:
+#### 1️⃣ Create PostgreSQL Database (Neon)
+
+1. Visit [neon.tech](https://neon.tech)
+2. Create a new project named "FinLedger"
+3. Copy the connection string (format: `postgresql://user:pass@host/dbname?sslmode=require`)
+4. Store it securely — you'll need it in the next steps
+
+#### 2️⃣ Prepare Backend for Production
+
+Update Prisma datasource to PostgreSQL:
+
+**File: `web/backend/prisma/schema.prisma`**
 
 ```prisma
 datasource db {
-  provider = "postgresql"
+  provider = "postgresql"  // Change from "sqlite"
   url      = env("DATABASE_URL")
 }
 ```
 
-Then run locally once:
+Regenerate Prisma client locally:
 
 ```bash
 cd web/backend
 npx prisma generate
+cd ../..
 ```
 
-### 3. Deploy Backend on Render
-
-1. Create a new Render Web Service from this GitHub repo.
-2. Root directory: `web/backend`
-3. Build command:
+Commit this change:
 
 ```bash
-npm install && npm run prisma:generate && npx prisma db push
-```
-
-4. Start command:
-
-```bash
-npm run start
-```
-
-5. Add environment variables in Render:
-
-- `NODE_ENV=production`
-- `PORT=4000`
-- `DATABASE_URL=<your_neon_url>`
-- `JWT_ACCESS_SECRET=<strong_random_secret>`
-- `JWT_REFRESH_SECRET=<strong_random_secret>`
-- `ACCESS_TOKEN_TTL=15m`
-- `REFRESH_TOKEN_TTL=30d`
-- `FRONTEND_URL=<your_vercel_url_after_frontend_deploy>`
-- `GEMINI_API_KEY=<optional>`
-
-6. Verify backend:
-
-```text
-https://<render-service>.onrender.com/health
-```
-
-### 4. Deploy Frontend on Vercel
-
-1. Import this repo into Vercel.
-2. Root directory: `web/frontend`
-3. Add env var:
-
-```text
-NEXT_PUBLIC_API_URL=https://<render-service>.onrender.com/api/v1
-```
-
-4. Deploy and test login/dashboard flows.
-
-### 5. Final Cross-Origin Sync
-
-Update Render `FRONTEND_URL` with your final Vercel URL and redeploy backend.
-
-## GitHub Update Commands
-
-Run these from repository root:
-
-```bash
-git add README.md .gitignore
-git commit -m "docs: portfolio-ready README and deployment guide"
+git add web/backend/prisma/schema.prisma
+git commit -m "chore: switch datasource to postgresql for production"
 git push origin main
 ```
 
-If you also want to include your latest app code changes:
+#### 3️⃣ Deploy Backend (Render)
+
+1. **Create Web Service:**
+   - Go to [render.com](https://render.com)
+   - Create new Web Service
+   - Connect your GitHub repository
+   - Select branch: `main`
+
+2. **Configure Service:**
+   - **Name:** finledger-api
+   - **Root Directory:** `web/backend`
+   - **Build Command:** `npm install && npm run prisma:generate && npx prisma db push`
+   - **Start Command:** `npm run start`
+
+3. **Set Environment Variables:**
+
+| Key | Value | Notes |
+|-----|-------|-------|
+| `NODE_ENV` | `production` | Required for secure defaults |
+| `PORT` | `4000` | Backend port |
+| `DATABASE_URL` | `postgresql://...` | From Neon (step 1) |
+| `JWT_ACCESS_SECRET` | Random 32+ char string | Generate: https://random.org/ |
+| `JWT_REFRESH_SECRET` | Random 32+ char string | Different from access secret |
+| `ACCESS_TOKEN_TTL` | `15m` | Token expiry duration |
+| `REFRESH_TOKEN_TTL` | `30d` | Refresh token expiry |
+| `FRONTEND_URL` | (leave blank for now) | Update after Vercel deploy |
+| `GEMINI_API_KEY` | (optional) | For AI features |
+
+4. **Verify Backend:**
+
+Once deployed, test health endpoint:
 
 ```bash
-git add .
-git commit -m "feat: finledger app updates and docs refresh"
-git push origin main
+curl https://<your-service>.onrender.com/health
+# Should return: {"success":true,"data":{"status":"ok"},"error":null,"code":200}
 ```
 
-## License
+#### 4️⃣ Deploy Frontend (Vercel)
 
-MIT
+1. **Create Project:**
+   - Go to [vercel.com](https://vercel.com)
+   - Import from GitHub
+   - Select the finledger repository
+
+2. **Configure Project:**
+   - **Root Directory:** `web/frontend`
+   - **Framework Preset:** Next.js (auto-detected)
+   - **Build Command:** `next build` (auto)
+   - **Start Command:** `next start` (auto)
+
+3. **Set Environment Variable:**
+
+| Key | Value |
+|-----|-------|
+| `NEXT_PUBLIC_API_URL` | `https://<your-render-service>.onrender.com/api/v1` |
+
+4. **Deploy and Test:**
+
+   - Vercel auto-deploys
+   - Visit your Vercel URL
+   - Test Register → Login → Dashboard flow
+
+#### 5️⃣ Final Cross-Origin Configuration
+
+After Vercel deployment, update Render backend to know the frontend URL:
+
+1. Go to Render dashboard
+2. Edit finledger-api Web Service
+3. Update `FRONTEND_URL` environment variable with your Vercel deployment URL
+4. Redeploy service
+
+### Production Checklist
+
+- [ ] Neon database created and connection tested
+- [ ] Backend environment variables configured
+- [ ] Backend deployed and health endpoint responds (curl test)
+- [ ] Frontend deployed with correct `NEXT_PUBLIC_API_URL`
+- [ ] User registration flow works end-to-end
+- [ ] Dashboard loads without CORS errors
+- [ ] Login persists after page refresh
+- [ ] Monitor logs for any runtime errors
+
+## ⚠️ Security & Environment Variables
+
+### Why `.env` Files Are Not Committed to GitHub
+
+Your `.env` file contains **sensitive credentials** that must never be exposed:
+
+- Database passwords
+- JWT signing secrets
+- API keys (Google Gemini, etc.)
+- Private database URLs
+
+**The `.gitignore` file already excludes `.env` files:**
+
+```
+.env
+.env.*
+!.env.example
+```
+
+This means:
+- ✅ `.env.example` (template) IS committed — safe template for developers
+- ✅ `.env` (actual secrets) is **NEVER** committed — GitHub keeps credentials safe
+- ✅ On your local machine, fill `.env` with real values
+- ✅ In production, secrets are set via hosting platform dashboards (Render, Vercel)
+
+### How Production Secrets Are Managed
+
+| Environment | Secret Source | Method |
+|-------------|---------------|--------|
+| **Local Dev** | `.env` file (not committed) | Manual JSON file |
+| **Render Backend** | Environment Variables UI | Web dashboard |
+| **Vercel Frontend** | Environment Variables UI | Web dashboard |
+
+Never commit `.env` — this is a critical security best practice.
 
 ---
 
-Built by Udayan Mal.
+## Project Structure
+
+```
+finledger/
+├── web/
+│   ├── frontend/              # Next.js 14 application
+│   │   ├── src/
+│   │   │   ├── app/          # App Router pages and layouts
+│   │   │   ├── components/   # Reusable React components
+│   │   │   ├── context/      # AuthContext for global state
+│   │   │   ├── hooks/        # Custom React hooks
+│   │   │   ├── lib/          # API client and utilities
+│   │   │   └── utils/        # Helper functions
+│   │   ├── next.config.js
+│   │   ├── tailwind.config.js
+│   │   └── package.json
+│   │
+│   └── backend/               # Express.js API server
+│       ├── src/
+│       │   ├── app.js        # Express app setup
+│       │   ├── index.js      # Server entry point
+│       │   ├── controllers/  # Route handlers
+│       │   ├── routes/       # API route definitions
+│       │   ├── services/     # Business logic
+│       │   ├── middleware/   # Express middleware
+│       │   ├── config/       # Configuration (env, DB, etc.)
+│       │   └── utils/        # Helper functions
+│       ├── prisma/
+│       │   └── schema.prisma # Database schema
+│       ├── package.json
+│       └── seed-dashboard.js # Test data seeder
+│
+├── shared/                     # Shared code across workspaces
+│   ├── constants/
+│   ├── types/
+│   └── utils/
+│
+├── README.md
+├── package.json              # Root monorepo config
+└── .gitignore               # Excludes .env and secrets
+```
+
+## Available Scripts
+
+```bash
+# Root level (monorepo)
+npm run dev              # Start frontend + backend concurrently
+npm run build            # Build both frontend and backend
+npm run lint             # Lint all workspaces
+npm run test             # Run backend tests
+
+# Frontend only
+cd web/frontend
+npm run dev              # Start Next.js dev server (port 3000)
+npm run build            # Build for production
+npm run start            # Run production build
+npm run lint             # ESLint check
+
+# Backend only
+cd web/backend
+npm run dev              # Start Express server with nodemon (port 4000)
+npm run start            # Start Express server
+npm run prisma:generate  # Regenerate Prisma client
+npm run prisma:studio    # Open Prisma Studio UI
+npm run seed:dashboard   # Populate test data
+npm run test             # Run Vitest unit tests
+```
+
+## Architecture Decisions
+
+### Monorepo with npm Workspaces
+
+Keeping frontend and backend in a single repository allows:
+- Shared type definitions and constants
+- Atomic commits across features
+- Easier refactoring of shared logic
+- Single CI/CD pipeline
+
+### Integer-Based Currency Storage
+
+All monetary values are stored as **paise** (integer cents), not floats:
+
+```
+Display: ₹12,345.67
+Storage: 1234567 paise
+Benefits: Perfect precision, no floating-point errors
+```
+
+### JWT with Refresh Tokens
+
+- Short-lived access tokens (15 minutes) in memory
+- Long-lived refresh tokens (30 days) in secure httpOnly cookies
+- Automatic token refresh on every API call
+- Seamless user experience with secure credentials
+
+### Decoupled REST API
+
+- Backend is API-first, independent of frontend framework
+- Allows future mobile app, CLI, or third-party integrations
+- Consistent response format: `{ success, data, error, code }`
+
+## Contributing
+
+Contributions are welcome! Please:
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## License
+
+MIT — See [LICENSE](LICENSE) for details.
+
+---
+
+**Built by** [Udayan Mal](https://github.com/udayan-mal)  
+**Repository:** [github.com/udayan-mal/finledger](https://github.com/udayan-mal/finledger)

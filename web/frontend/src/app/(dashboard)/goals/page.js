@@ -57,7 +57,7 @@ export default function GoalsPage() {
           </div>
           <p className="font-headline text-lg text-[#C9A84C]">No Active Goals</p>
           <p className="font-mono text-[10px] uppercase tracking-widest text-[#F1F0EC]/40 text-center max-w-sm leading-relaxed">
-            You haven't established any financial milestones yet. Click the <strong className="text-[#C9A84C]">NEW GOAL</strong> button to set targets.
+            You haven&apos;t established any financial milestones yet. Click the <strong className="text-[#C9A84C]">NEW GOAL</strong> button to set targets.
           </p>
         </div>
       ) : (

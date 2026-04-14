@@ -489,7 +489,7 @@ export default function AppShell({ children }) {
                   </div>
                   <div className="px-4 py-6 text-center">
                     <span className="material-symbols-outlined text-on-surface-variant/30 text-3xl mb-2">notifications_off</span>
-                    <p className="text-xs text-[#F1F0EC]/40 font-mono">You're all caught up!</p>
+                    <p className="text-xs text-[#F1F0EC]/40 font-mono">You&apos;re all caught up!</p>
                   </div>
                 </div>
               )}

@@ -44,7 +44,7 @@ export default function ReportsPage() {
         setExpenseBreakdown(d?.expenseBreakdown || []);
       })
       .catch(() => {});
-  }, []);
+  }, [activePeriod]);
 
   const fetchReport = async (periodKey) => {
     setIsLoading(true);
