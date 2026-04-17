@@ -169,7 +169,7 @@ export default function DashboardPage() {
     fundName: "",
     amountPaise: "10000",
     frequency: "MONTHLY",
-    nextDue: new Date().toISOString().split("T")[0],
+    dueDay: "15",
     accountId: "",
     platform: "Zerodha",
     type: "SIP"
@@ -220,7 +220,7 @@ export default function DashboardPage() {
         fundName: sipForm.fundName,
         amountPaise: Math.round(parseFloat(sipForm.amountPaise) * 100),
         frequency: sipForm.frequency,
-        nextDue: new Date(sipForm.nextDue).toISOString(),
+        dueDay: parseInt(sipForm.dueDay, 10),
         accountId: sipForm.accountId || null,
         platform: sipForm.platform,
         type: sipForm.type
@@ -354,14 +354,18 @@ export default function DashboardPage() {
               />
             </div>
             <div>
-              <label className="block text-[10px] font-mono uppercase tracking-widest text-[#F1F0EC]/60 mb-2">Next Due Date</label>
-              <input
-                type="date"
+              <label className="block text-[10px] font-mono uppercase tracking-widest text-[#F1F0EC]/60 mb-2">Day of Month</label>
+              <select
                 className="w-full bg-[#12121f] border border-outline-variant/20 focus:border-[#C9A84C] focus:ring-1 focus:ring-[#C9A84C]/50 text-sm py-3 px-4 rounded-lg text-on-surface outline-none"
-                value={sipForm.nextDue}
-                onChange={(e) => setSipForm((current) => ({ ...current, nextDue: e.target.value }))}
-                required
-              />
+                value={sipForm.dueDay}
+                onChange={(e) => setSipForm((current) => ({ ...current, dueDay: e.target.value }))}
+              >
+                {Array.from({ length: 28 }, (_, index) => index + 1).map((day) => (
+                  <option key={day} value={String(day)}>
+                    {day}{day === 1 ? "st" : day === 2 ? "nd" : day === 3 ? "rd" : "th"}
+                  </option>
+                ))}
+              </select>
             </div>
             <div>
               <label className="block text-[10px] font-mono uppercase tracking-widest text-[#F1F0EC]/60 mb-2">Frequency</label>

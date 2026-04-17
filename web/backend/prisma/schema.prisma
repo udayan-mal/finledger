@@ -145,6 +145,7 @@ model SipPlan {
   fundName          String
   amountPaise       Int
   frequency         String         @default("MONTHLY")
+  dueDay            Int            @default(1)
   nextDue           DateTime
   platform          String         @default("Zerodha")
   type              String         @default("SIP")

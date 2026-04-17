@@ -6,7 +6,7 @@ const sipPlanSchema = z.object({
   fundName: z.string().min(2),
   amountPaise: z.coerce.number().int().positive(),
   frequency: z.enum(["MONTHLY", "QUARTERLY", "YEARLY"]).default("MONTHLY"),
-  nextDue: z.string().datetime(),
+  dueDay: z.coerce.number().int().min(1).max(28).default(1),
   accountId: z.string().uuid().optional().nullable(),
   platform: z.enum(["Zerodha", "Groww", "Dhan"]).default("Zerodha"),
   type: z.enum(["SIP", "LUMPSUM"]).default("SIP"),
@@ -24,6 +24,18 @@ const addNextDue = (date, frequency) => {
   else if (frequency === "YEARLY") next.setFullYear(next.getFullYear() + 1);
   else next.setMonth(next.getMonth() + 1);
   return next;
+};
+
+const buildDueDateFromDay = (sourceDate, dueDay) => {
+  const base = new Date(sourceDate);
+  base.setHours(0, 0, 0, 0);
+
+  const candidate = new Date(base.getFullYear(), base.getMonth(), dueDay);
+  if (candidate < base) {
+    return new Date(base.getFullYear(), base.getMonth() + 1, dueDay);
+  }
+
+  return candidate;
 };
 
 const buildTransactionNote = (plan, actionLabel) => `SIP Plan: ${plan.fundName} | Platform: ${plan.platform} | ${plan.type} | ${actionLabel}`;
@@ -48,11 +60,12 @@ export const listSipPlans = async (req, res, next) => {
 export const createSipPlan = async (req, res, next) => {
   try {
     const body = sipPlanSchema.parse(req.body);
+    const nextDue = buildDueDateFromDay(new Date(), body.dueDay);
     const item = await prisma.sipPlan.create({
       data: {
         ...body,
         userId: req.user.sub,
-        nextDue: new Date(body.nextDue)
+        nextDue
       },
       include: { account: true, executions: true }
     });
@@ -67,7 +80,7 @@ export const updateSipPlan = async (req, res, next) => {
     const body = sipPlanSchema.partial().parse(req.body);
     const data = {
       ...body,
-      ...(body.nextDue ? { nextDue: new Date(body.nextDue) } : {})
+      ...(body.dueDay ? { nextDue: buildDueDateFromDay(new Date(), body.dueDay) } : {})
     };
 
     const item = await prisma.sipPlan.update({
@@ -124,7 +137,7 @@ export const markSipPaid = async (req, res, next) => {
       }
     }
 
-    const nextDue = addNextDue(plan.nextDue, plan.frequency);
+    const nextDue = buildDueDateFromDay(addNextDue(plan.nextDue, plan.frequency), plan.dueDay);
 
     const result = await prisma.$transaction(async (tx) => {
       let category = await tx.category.findFirst({
@@ -198,7 +211,7 @@ export const skipSip = async (req, res, next) => {
 
     if (!plan) throw new Error("SIP plan not found");
 
-    const nextDue = addNextDue(plan.nextDue, plan.frequency);
+    const nextDue = buildDueDateFromDay(addNextDue(plan.nextDue, plan.frequency), plan.dueDay);
 
     const result = await prisma.$transaction(async (tx) => {
       const execution = await tx.sipExecution.create({
