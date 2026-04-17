@@ -212,6 +212,7 @@ export default function DashboardPage() {
 
   const sipReminders = data?.sipReminders || [];
   const dueSipReminders = sipReminders.filter((item) => item.isDueToday || item.isOverdue);
+  const monthlyContributionTrend = data?.monthlyContributionTrend || [];
 
   const handleSipFormSubmit = async (event) => {
     event.preventDefault();
@@ -250,6 +251,11 @@ export default function DashboardPage() {
   const cashFlow = data?.cashFlow || [];
   const expenseBreakdown = data?.expenseBreakdown || [];
   const incomeBreakdown = data?.incomeBreakdown || [];
+  const sipDueCount = data?.sipDueCount || 0;
+  const sipOverdueCount = data?.sipOverdueCount || 0;
+  const sipUpcomingCount = data?.sipUpcomingCount || 0;
+  const cashRequiredThisMonthPaise = data?.cashRequiredThisMonthPaise || 0;
+  const peakContribution = Math.max(0, ...monthlyContributionTrend.map((item) => item.amountPaise || 0));
 
   const totalMonthlyExpense = expenseBreakdown.reduce((s, e) => s + (e.amount || 0), 0);
   const totalMonthlyIncome = incomeBreakdown.reduce((s, e) => s + (e.amount || 0), 0);
@@ -425,6 +431,75 @@ export default function DashboardPage() {
             </div>
           </form>
         )}
+      </section>
+
+      <section className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+        <DashMetric
+          label="SIP Due / Overdue"
+          value={`${sipDueCount}`}
+          subtitle={`${sipOverdueCount} overdue`}
+          icon="notifications_active"
+          valueColor={sipDueCount > 0 ? "text-yellow-300" : "text-green-400"}
+          iconColor={sipDueCount > 0 ? "text-yellow-300" : "text-green-400"}
+          gradient="bg-yellow-500/10"
+        />
+        <DashMetric
+          label="Upcoming SIP (7d)"
+          value={`${sipUpcomingCount}`}
+          subtitle="Due in next 7 days"
+          icon="event_upcoming"
+          valueColor="text-blue-300"
+          iconColor="text-blue-300"
+          gradient="bg-blue-500/10"
+        />
+        <DashMetric
+          label="Cash Required (Month)"
+          value={fmtINR(cashRequiredThisMonthPaise)}
+          subtitle="All active SIP plans"
+          icon="account_balance_wallet"
+          valueColor="text-[#C9A84C]"
+          iconColor="text-[#C9A84C]"
+          gradient="bg-[#C9A84C]/10"
+        />
+        <DashMetric
+          label="Realized P&L"
+          value={fmtINR(m.realizedPnlPaise || 0)}
+          subtitle="Sell trades only"
+          icon="monitoring"
+          valueColor={(m.realizedPnlPaise || 0) >= 0 ? "text-green-400" : "text-red-400"}
+          iconColor={(m.realizedPnlPaise || 0) >= 0 ? "text-green-400" : "text-red-400"}
+          gradient={(m.realizedPnlPaise || 0) >= 0 ? "bg-green-500/10" : "bg-red-500/10"}
+        />
+      </section>
+
+      <section className="glass-panel rounded-xl p-6 lg:p-8">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <span className="material-symbols-outlined text-[#C9A84C] text-[20px]">insights</span>
+            <h2 className="font-headline text-xl text-on-surface">Monthly Contribution Trend</h2>
+          </div>
+          <p className="text-on-surface-variant/50 text-xs font-mono uppercase tracking-widest">Last 6 months</p>
+        </div>
+
+        <div className="grid grid-cols-6 gap-3 items-end min-h-[120px]">
+          {monthlyContributionTrend.map((item) => {
+            const ratio = peakContribution > 0 ? item.amountPaise / peakContribution : 0;
+            const barHeight = Math.max(8, Math.round(ratio * 80));
+
+            return (
+              <div key={item.month} className="flex flex-col items-center gap-2">
+                <div className="text-[10px] font-mono text-on-surface-variant/60">{item.amount > 0 ? `₹${Math.round(item.amount)}` : "-"}</div>
+                <div className="w-full max-w-[56px] h-[90px] rounded-lg bg-[#12121f] border border-outline-variant/10 flex items-end justify-center p-1">
+                  <div
+                    className="w-full rounded-md bg-gradient-to-t from-[#C9A84C]/80 to-[#e6c364]"
+                    style={{ height: `${barHeight}px` }}
+                  />
+                </div>
+                <div className="text-[10px] font-mono uppercase tracking-widest text-on-surface-variant/60">{item.month}</div>
+              </div>
+            );
+          })}
+        </div>
       </section>
 
       {/* ── 6 Metric Cards ── */}

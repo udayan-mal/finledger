@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { prisma } from "../config/prisma.js";
-import { ok } from "../utils/response.js";
+import { fail, ok } from "../utils/response.js";
 
 const sipPlanSchema = z.object({
   fundName: z.string().min(2),
@@ -60,6 +60,25 @@ export const listSipPlans = async (req, res, next) => {
 export const createSipPlan = async (req, res, next) => {
   try {
     const body = sipPlanSchema.parse(req.body);
+
+    const duplicate = await prisma.sipPlan.findFirst({
+      where: {
+        userId: req.user.sub,
+        active: true,
+        fundName: body.fundName,
+        amountPaise: body.amountPaise,
+        frequency: body.frequency,
+        dueDay: body.dueDay,
+        platform: body.platform,
+        type: body.type,
+        accountId: body.accountId || null
+      }
+    });
+
+    if (duplicate) {
+      return fail(res, "Similar active SIP plan already exists", 409, "DUPLICATE_SIP_PLAN");
+    }
+
     const nextDue = buildDueDateFromDay(new Date(), body.dueDay);
     const item = await prisma.sipPlan.create({
       data: {
@@ -114,6 +133,27 @@ export const markSipPaid = async (req, res, next) => {
     });
 
     if (!plan) throw new Error("SIP plan not found");
+
+    const dueDayStart = new Date(plan.nextDue);
+    dueDayStart.setHours(0, 0, 0, 0);
+    const dueDayEnd = new Date(dueDayStart);
+    dueDayEnd.setDate(dueDayEnd.getDate() + 1);
+
+    const alreadyPaid = await prisma.sipExecution.findFirst({
+      where: {
+        userId: req.user.sub,
+        sipPlanId: plan.id,
+        status: "PAID",
+        executedAt: {
+          gte: dueDayStart,
+          lt: dueDayEnd
+        }
+      }
+    });
+
+    if (alreadyPaid) {
+      return fail(res, "SIP already marked paid for this due cycle", 409, "DUPLICATE_SIP_EXECUTION");
+    }
 
     let debitAccountId = plan.accountId || plan.account?.id || null;
     if (!debitAccountId) {

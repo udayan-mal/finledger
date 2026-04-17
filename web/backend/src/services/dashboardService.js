@@ -6,7 +6,7 @@ export const getDashboardSummary = async (userId) => {
   const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 6, 1);
 
   // Fetch all data in parallel
-  const [accounts, monthlyTransactions, allTransactionsLast6M, stockTrades, mutualFunds, recurringExpenses, sipPlans] = await Promise.all([
+  const [accounts, monthlyTransactions, allTransactionsLast6M, stockTrades, mutualFunds, recurringExpenses, sipPlans, sipExecutions] = await Promise.all([
     prisma.account.findMany({
       where: { userId },
       select: { id: true, type: true, balancePaise: true, name: true }
@@ -37,6 +37,12 @@ export const getDashboardSummary = async (userId) => {
       include: { account: { select: { id: true, name: true, type: true } } },
       orderBy: { nextDue: "asc" },
       take: 8
+    }),
+    prisma.sipExecution.findMany({
+      where: { userId, status: "PAID" },
+      select: { amountPaise: true, executedAt: true },
+      orderBy: { executedAt: "desc" },
+      take: 200
     })
   ]);
 
@@ -79,6 +85,10 @@ export const getDashboardSummary = async (userId) => {
 
   // Portfolio P&L (would need real current NAV for accuracy)
   const portfolioPnlPercent = 0; // Needs live data
+  const realizedPnlPaise = stockTrades
+    .filter((trade) => trade.tradeType === "SELL")
+    .reduce((sum, trade) => sum + (trade.netPnlPaise || 0), 0);
+  const unrealizedPnlPaise = 0; // Requires live market pricing integration.
 
   // Get last 6 months cash flow data (grouped by month)
   const cashFlow = calculateCashFlowByMonth(allTransactionsLast6M);
@@ -131,12 +141,18 @@ export const getDashboardSummary = async (userId) => {
   today.setHours(0, 0, 0, 0);
   const tomorrow = new Date(today);
   tomorrow.setDate(tomorrow.getDate() + 1);
+  const sevenDaysOut = new Date(today);
+  sevenDaysOut.setDate(sevenDaysOut.getDate() + 7);
+
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
 
   const sipReminders = sipPlans.map((plan) => {
     const nextDue = new Date(plan.nextDue);
     nextDue.setHours(0, 0, 0, 0);
     const isOverdue = nextDue < today;
     const isDueToday = nextDue >= today && nextDue < tomorrow;
+    const isUpcoming = nextDue >= tomorrow && nextDue <= sevenDaysOut;
     return {
       id: plan.id,
       fundName: plan.fundName,
@@ -148,9 +164,19 @@ export const getDashboardSummary = async (userId) => {
       active: plan.active,
       account: plan.account,
       isDueToday,
-      isOverdue
+      isOverdue,
+      isUpcoming
     };
   });
+
+  const cashRequiredThisMonthPaise = sipReminders
+    .filter((item) => {
+      const due = new Date(item.nextDue);
+      return due >= monthStart && due < monthEnd;
+    })
+    .reduce((sum, item) => sum + item.amountPaise, 0);
+
+  const monthlyContributionTrend = buildMonthlyContributionTrend(sipExecutions);
 
   return {
     metrics: {
@@ -161,6 +187,8 @@ export const getDashboardSummary = async (userId) => {
       bankCashPaise,
       savingsRatePercent: savingsRatePercent.toFixed(1),
       portfolioPnlPercent: portfolioPnlPercent.toFixed(1),
+      realizedPnlPaise,
+      unrealizedPnlPaise,
       totalIncomeCount,
       totalExpenseCount
     },
@@ -171,8 +199,11 @@ export const getDashboardSummary = async (userId) => {
     stocks: stocks.slice(0, 10),
     upcoming,
     sipReminders,
+    sipUpcomingCount: sipReminders.filter((item) => item.isUpcoming).length,
     sipDueCount: sipReminders.filter((item) => item.isDueToday || item.isOverdue).length,
-    sipOverdueCount: sipReminders.filter((item) => item.isOverdue).length
+    sipOverdueCount: sipReminders.filter((item) => item.isOverdue).length,
+    cashRequiredThisMonthPaise,
+    monthlyContributionTrend
   };
 };
 
@@ -232,4 +263,34 @@ function calculateCategoryBreakdown(transactions) {
     }))
     .sort((a, b) => b.amount - a.amount)
     .slice(0, 8); // Expanded from 5 to 8 for better visibility
+}
+
+function buildMonthlyContributionTrend(executions) {
+  const months = [];
+  for (let i = 5; i >= 0; i--) {
+    const date = new Date();
+    date.setMonth(date.getMonth() - i);
+    months.push({
+      key: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`,
+      month: date.toLocaleString("en-US", { month: "short" }),
+      year: date.getFullYear(),
+      monthNum: date.getMonth()
+    });
+  }
+
+  const totalByMonth = new Map(months.map((m) => [m.key, 0]));
+
+  executions.forEach((execution) => {
+    const date = new Date(execution.executedAt);
+    const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+    if (totalByMonth.has(key)) {
+      totalByMonth.set(key, totalByMonth.get(key) + execution.amountPaise);
+    }
+  });
+
+  return months.map((month) => ({
+    month: month.month,
+    amountPaise: totalByMonth.get(month.key) || 0,
+    amount: (totalByMonth.get(month.key) || 0) / 100
+  }));
 }
