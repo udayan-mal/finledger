@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
-import { api } from "@/lib/api";
+import { apiGetCached } from "@/lib/api";
 import ExpenseAreaChart from "@/components/charts/ExpenseAreaChart";
 
 /* ──────────────────────────────────────────────
@@ -157,7 +157,7 @@ export default function DashboardPage() {
   const fetchDashboard = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await api.get("/dashboard/summary");
+      const res = await apiGetCached("/dashboard/summary", { ttlMs: 20000 });
       setData(res.data.data);
       setError(null);
     } catch (err) {

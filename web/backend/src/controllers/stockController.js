@@ -19,7 +19,41 @@ export const listStockTrades = async (req, res, next) => {
       where: { userId: req.user.sub },
       orderBy: { date: "desc" }
     });
-    return ok(res, trades);
+
+    const syncTxIds = trades
+      .map((trade) => trade.syncTxId)
+      .filter((syncTxId) => Boolean(syncTxId));
+
+    const linkedTransactions = syncTxIds.length
+      ? await prisma.transaction.findMany({
+          where: {
+            userId: req.user.sub,
+            id: { in: syncTxIds }
+          },
+          select: {
+            id: true,
+            type: true
+          }
+        })
+      : [];
+
+    const txTypeById = new Map(linkedTransactions.map((tx) => [tx.id, tx.type]));
+
+    const normalizedTrades = trades.map((trade) => {
+      const linkedTxType = trade.syncTxId ? txTypeById.get(trade.syncTxId) : null;
+      const shouldBeLoss = trade.tradeType === "SELL" && linkedTxType === "EXPENSE";
+
+      if (shouldBeLoss && trade.netPnlPaise > 0) {
+        return {
+          ...trade,
+          netPnlPaise: -Math.abs(trade.netPnlPaise)
+        };
+      }
+
+      return trade;
+    });
+
+    return ok(res, normalizedTrades);
   } catch (error) {
     return next(error);
   }
@@ -40,10 +74,58 @@ export const updateStockTrade = async (req, res, next) => {
   try {
     const body = tradeSchema.parse(req.body);
     const payload = buildStockTradePayload({ ...body, userId: req.user.sub });
-    const trade = await prisma.stockTrade.update({ 
-      where: { id: req.params.id, userId: req.user.sub },
-      data: payload 
+    const trade = await prisma.$transaction(async (tx) => {
+      const updatedTrade = await tx.stockTrade.update({
+        where: { id: req.params.id, userId: req.user.sub },
+        data: payload
+      });
+
+      if (updatedTrade.syncTxId) {
+        const isSell = updatedTrade.tradeType === "SELL";
+        const isLoss = updatedTrade.netPnlPaise < 0;
+
+        const transactionType = isSell ? (isLoss ? "EXPENSE" : "INCOME") : "INVESTMENT";
+        const categoryName = isSell ? (isLoss ? "Realized Loss" : "Realized Gain") : "Stock Trade";
+        const amountPaise = isSell
+          ? Math.abs(updatedTrade.netPnlPaise || 0)
+          : (updatedTrade.totalChargesPaise || 0);
+
+        let category = await tx.category.findFirst({
+          where: {
+            userId: req.user.sub,
+            name: categoryName,
+            type: transactionType
+          }
+        });
+
+        if (!category) {
+          category = await tx.category.create({
+            data: {
+              userId: req.user.sub,
+              name: categoryName,
+              type: transactionType
+            }
+          });
+        }
+
+        const stockNote = `Symbol: ${updatedTrade.symbol} | Platform: ${updatedTrade.platform} | ${isSell ? (isLoss ? "Loss Net P&L" : "Profit Net P&L") : "Charges Paid"}`;
+
+        await tx.transaction.updateMany({
+          where: { id: updatedTrade.syncTxId, userId: req.user.sub },
+          data: {
+            type: transactionType,
+            categoryId: category.id,
+            amountPaise,
+            description: updatedTrade.symbol,
+            note: stockNote,
+            date: updatedTrade.date
+          }
+        });
+      }
+
+      return updatedTrade;
     });
+
     return ok(res, trade);
   } catch (error) {
     return next(error);

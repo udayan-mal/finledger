@@ -40,13 +40,50 @@ export const createMutualFund = async (req, res, next) => {
 export const updateMutualFund = async (req, res, next) => {
   try {
     const body = mfSchema.parse(req.body);
-    const fund = await prisma.mutualFund.update({
-      where: { id: req.params.id, userId: req.user.sub },
-      data: {
-        ...body,
-        date: new Date(body.date)
+    const fund = await prisma.$transaction(async (tx) => {
+      const updatedFund = await tx.mutualFund.update({
+        where: { id: req.params.id, userId: req.user.sub },
+        data: {
+          ...body,
+          date: new Date(body.date)
+        }
+      });
+
+      if (updatedFund.syncTxId) {
+        let category = await tx.category.findFirst({
+          where: {
+            userId: req.user.sub,
+            name: "Mutual Fund",
+            type: "INVESTMENT"
+          }
+        });
+
+        if (!category) {
+          category = await tx.category.create({
+            data: {
+              userId: req.user.sub,
+              name: "Mutual Fund",
+              type: "INVESTMENT"
+            }
+          });
+        }
+
+        await tx.transaction.updateMany({
+          where: { id: updatedFund.syncTxId, userId: req.user.sub },
+          data: {
+            type: "INVESTMENT",
+            categoryId: category.id,
+            amountPaise: updatedFund.sipAmountPaise || 0,
+            description: updatedFund.fundName,
+            note: `Platform: ${updatedFund.platform} | ${updatedFund.type}`,
+            date: updatedFund.date
+          }
+        });
       }
+
+      return updatedFund;
     });
+
     return ok(res, fund);
   } catch (error) {
     return next(error);

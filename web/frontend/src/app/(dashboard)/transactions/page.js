@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { api } from "@/lib/api";
+import { api, apiGetCached } from "@/lib/api";
 import EditEntryModal from "@/components/ui/EditEntryModal";
 
 export default function TransactionsPage() {
@@ -15,9 +15,9 @@ export default function TransactionsPage() {
 
   const [editingTx, setEditingTx] = useState(null);
 
-  const fetchTransactions = useCallback(async () => {
+  const fetchTransactions = useCallback(async (force = false) => {
     try {
-      const res = await api.get("/transactions");
+      const res = await apiGetCached("/transactions", { force, ttlMs: 30000 });
       setTransactions(res.data.data || []);
     } catch (err) {
       console.error("Failed to fetch transactions:", err);
@@ -35,7 +35,7 @@ export default function TransactionsPage() {
     if (!window.confirm("Are you sure you want to permanently delete this transaction?")) return;
     try {
       await api.delete(`/transactions/${id}`);
-      fetchTransactions();
+      fetchTransactions(true);
     } catch (err) {
       alert("Failed to delete transaction.");
     }
@@ -60,10 +60,39 @@ export default function TransactionsPage() {
     const directDescription = (tx.description || "").trim();
     if (directDescription) return directDescription;
 
+    if (tx.linkedStockTrade?.symbol) {
+      return tx.linkedStockTrade.symbol.toUpperCase();
+    }
+
+    if (tx.linkedMutualFund?.fundName) {
+      return tx.linkedMutualFund.fundName;
+    }
+
     const symbolMatch = (tx.note || "").match(/Symbol:\s*([A-Za-z0-9.-]+)/i);
     if (symbolMatch?.[1]) return symbolMatch[1].toUpperCase();
 
     return "-None-";
+  };
+
+  const getDisplayNote = (tx) => {
+    if (tx.linkedMutualFund) {
+      const platform = tx.linkedMutualFund.platform || "Zerodha";
+      const mfType = tx.linkedMutualFund.type || "SIP";
+      return `Platform: ${platform} | ${mfType}`;
+    }
+
+    const rawNote = (tx.note || "").trim();
+    if (rawNote) return rawNote;
+
+    if (tx.linkedStockTrade) {
+      const isLoss = (tx.linkedStockTrade.netPnlPaise || 0) < 0;
+      const sellOrBuyDetail = tx.linkedStockTrade.tradeType === "SELL"
+        ? (isLoss ? "Loss Net P&L" : "Profit Net P&L")
+        : "Charges Paid";
+      return `Platform: ${tx.linkedStockTrade.platform || "Zerodha"} | ${sellOrBuyDetail}`;
+    }
+
+    return "";
   };
 
   const exportCSV = () => {
@@ -77,8 +106,10 @@ export default function TransactionsPage() {
     const rows = filteredData.map(tx => {
        const dateStr = formatDate(tx.date);
        const category = tx.category?.name || "Uncategorized";
-       const desc = tx.description ? `"${tx.description.replace(/"/g, '""')}"` : "";
-       const note = tx.note ? `"${tx.note.replace(/"/g, '""')}"` : "";
+       const displayDescription = getDisplayDescription(tx);
+       const displayNote = getDisplayNote(tx);
+       const desc = displayDescription ? `"${displayDescription.replace(/"/g, '""')}"` : "";
+       const note = displayNote ? `"${displayNote.replace(/"/g, '""')}"` : "";
        const amount = tx.amountPaise / 100;
        const acct = tx.account?.name || "Unknown";
        
@@ -97,8 +128,8 @@ export default function TransactionsPage() {
 
   // Filtering Logic
   const filteredData = transactions.filter(tx => {
-    const desc = (tx.description || "") + " " + (tx.note || "");
-    const matchesSearch = desc.toLowerCase().includes(search.toLowerCase());
+    const searchSurface = `${getDisplayDescription(tx)} ${getDisplayNote(tx)}`;
+    const matchesSearch = searchSurface.toLowerCase().includes(search.toLowerCase());
     
     const catName = tx.category?.name || "Uncategorized";
     const matchesCategory = filterCategory === "All Categories" || catName === filterCategory;
@@ -228,7 +259,7 @@ export default function TransactionsPage() {
                     </td>
                     <td className="px-6 py-4">
                       <p className="text-sm text-on-surface font-medium truncate max-w-[200px]">{getDisplayDescription(tx)}</p>
-                      {tx.note && <p className="text-xs text-on-surface-variant/50 truncate max-w-[200px] mt-0.5">{tx.note}</p>}
+                      {getDisplayNote(tx) && <p className="text-xs text-on-surface-variant/50 truncate max-w-[200px] mt-0.5">{getDisplayNote(tx)}</p>}
                     </td>
                     <td className={`px-6 py-4 font-mono text-sm font-bold text-right whitespace-nowrap ${
                       tx.type === "INCOME" ? "text-green-400" : 
@@ -261,7 +292,7 @@ export default function TransactionsPage() {
       <EditEntryModal 
         isOpen={!!editingTx} 
         onClose={() => setEditingTx(null)} 
-        onSuccess={() => { setEditingTx(null); fetchTransactions(); }}
+        onSuccess={() => { setEditingTx(null); fetchTransactions(true); }}
         entryType="TRANSACTION"
         entryData={editingTx}
       />

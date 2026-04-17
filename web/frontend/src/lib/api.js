@@ -5,12 +5,55 @@ export const api = axios.create({
   withCredentials: true
 });
 
+const inMemoryGetCache = new Map();
+
+const buildCacheKey = (url, params) => `${url}::${JSON.stringify(params || {})}`;
+
+const getCachedEntry = (cacheKey) => {
+  const entry = inMemoryGetCache.get(cacheKey);
+  if (!entry) return null;
+  if (Date.now() > entry.expiresAt) {
+    inMemoryGetCache.delete(cacheKey);
+    return null;
+  }
+  return entry.payload;
+};
+
+export const clearApiGetCache = () => {
+  inMemoryGetCache.clear();
+};
+
+export const apiGetCached = async (url, options = {}) => {
+  const { ttlMs = 20000, force = false, params, ...config } = options;
+  const cacheKey = buildCacheKey(url, params);
+
+  if (!force) {
+    const cachedPayload = getCachedEntry(cacheKey);
+    if (cachedPayload) return cachedPayload;
+  }
+
+  const response = await api.get(url, { ...config, params });
+  inMemoryGetCache.set(cacheKey, {
+    payload: response,
+    expiresAt: Date.now() + ttlMs
+  });
+
+  return response;
+};
+
 // Intercept requests and attach the JWT token
 api.interceptors.request.use((config) => {
   const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+
+  // Mutating requests invalidate cached GET responses so lists stay consistent.
+  const method = (config.method || "get").toLowerCase();
+  if (method !== "get") {
+    clearApiGetCache();
+  }
+
   return config;
 }, (error) => {
   return Promise.reject(error);

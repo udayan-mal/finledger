@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { api } from "@/lib/api";
+import { api, apiGetCached } from "@/lib/api";
 import EditEntryModal from "@/components/ui/EditEntryModal";
 
 export default function MutualFundsPage() {
@@ -12,9 +12,9 @@ export default function MutualFundsPage() {
   
   const [editingFund, setEditingFund] = useState(null);
 
-  const fetchFunds = useCallback(async () => {
+  const fetchFunds = useCallback(async (force = false) => {
     try {
-      const res = await api.get("/mutual-funds");
+      const res = await apiGetCached("/mutual-funds", { force, ttlMs: 30000 });
       const fundData = res.data?.data || res.data || [];
       const finalData = Array.isArray(fundData) ? fundData : [];
       setFunds(finalData);
@@ -35,7 +35,7 @@ export default function MutualFundsPage() {
     if (!window.confirm("Are you sure you want to permanently delete this mutual fund entry? Associated transactions will also be purged.")) return;
     try {
       await api.delete(`/mutual-funds/${id}`);
-      fetchFunds();
+      fetchFunds(true);
     } catch (err) {
       alert("Failed to delete mutual fund.");
     }
@@ -181,7 +181,7 @@ export default function MutualFundsPage() {
       <EditEntryModal 
         isOpen={!!editingFund} 
         onClose={() => setEditingFund(null)} 
-        onSuccess={() => { setEditingFund(null); fetchFunds(); }}
+        onSuccess={() => { setEditingFund(null); fetchFunds(true); }}
         entryType="MUTUAL_FUND"
         entryData={editingFund}
       />

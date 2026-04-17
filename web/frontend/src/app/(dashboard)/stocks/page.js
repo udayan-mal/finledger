@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { api } from "@/lib/api";
+import { api, apiGetCached } from "@/lib/api";
 import EditEntryModal from "@/components/ui/EditEntryModal";
 
 export default function StocksPage() {
@@ -12,9 +12,9 @@ export default function StocksPage() {
 
   const [editingTrade, setEditingTrade] = useState(null);
 
-  const fetchTrades = useCallback(async () => {
+  const fetchTrades = useCallback(async (force = false) => {
     try {
-      const res = await api.get("/stock-trades");
+      const res = await apiGetCached("/stock-trades", { force, ttlMs: 30000 });
       const tradeData = res.data?.data || res.data || [];
       calculateMetrics(Array.isArray(tradeData) ? tradeData : []);
     } catch (err) {
@@ -33,7 +33,7 @@ export default function StocksPage() {
     if (!window.confirm("Are you sure you want to permanently delete this stock trade? Associated transactions will also be purged.")) return;
     try {
       await api.delete(`/stock-trades/${id}`);
-      fetchTrades();
+      fetchTrades(true);
     } catch (err) {
       alert("Failed to delete stock trade.");
     }
@@ -210,7 +210,7 @@ export default function StocksPage() {
       <EditEntryModal 
         isOpen={!!editingTrade} 
         onClose={() => setEditingTrade(null)} 
-        onSuccess={() => { setEditingTrade(null); fetchTrades(); }}
+        onSuccess={() => { setEditingTrade(null); fetchTrades(true); }}
         entryType="STOCK"
         entryData={editingTrade}
       />

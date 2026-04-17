@@ -10,7 +10,62 @@ export const listTransactions = async (req, res, next) => {
       orderBy: { date: "desc" },
       take: 100
     });
-    return ok(res, items);
+
+    const transactionIds = items.map((item) => item.id);
+
+    if (transactionIds.length === 0) {
+      return ok(res, items);
+    }
+
+    const [linkedStockTrades, linkedMutualFunds] = await Promise.all([
+      prisma.stockTrade.findMany({
+        where: {
+          userId: req.user.sub,
+          syncTxId: { in: transactionIds }
+        },
+        select: {
+          syncTxId: true,
+          symbol: true,
+          platform: true,
+          tradeType: true,
+          netPnlPaise: true,
+          totalChargesPaise: true
+        }
+      }),
+      prisma.mutualFund.findMany({
+        where: {
+          userId: req.user.sub,
+          syncTxId: { in: transactionIds }
+        },
+        select: {
+          syncTxId: true,
+          fundName: true,
+          platform: true,
+          type: true,
+          sipAmountPaise: true
+        }
+      })
+    ]);
+
+    const stockTradeByTxId = new Map(
+      linkedStockTrades
+        .filter((trade) => Boolean(trade.syncTxId))
+        .map((trade) => [trade.syncTxId, trade])
+    );
+
+    const mutualFundByTxId = new Map(
+      linkedMutualFunds
+        .filter((fund) => Boolean(fund.syncTxId))
+        .map((fund) => [fund.syncTxId, fund])
+    );
+
+    const enrichedItems = items.map((item) => ({
+      ...item,
+      linkedStockTrade: stockTradeByTxId.get(item.id) || null,
+      linkedMutualFund: mutualFundByTxId.get(item.id) || null
+    }));
+
+    return ok(res, enrichedItems);
   } catch (error) {
     return next(error);
   }
@@ -60,7 +115,16 @@ export const updateTransaction = async (req, res, next) => {
 
 export const deleteTransaction = async (req, res, next) => {
   try {
-    await prisma.transaction.delete({ where: { id: req.params.id, userId: req.user.sub } });
+    await prisma.$transaction([
+      prisma.stockTrade.deleteMany({
+        where: { syncTxId: req.params.id, userId: req.user.sub }
+      }),
+      prisma.mutualFund.deleteMany({
+        where: { syncTxId: req.params.id, userId: req.user.sub }
+      }),
+      prisma.transaction.delete({ where: { id: req.params.id, userId: req.user.sub } })
+    ]);
+
     return ok(res, { deleted: true });
   } catch (error) {
     return next(error);
