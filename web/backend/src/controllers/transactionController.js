@@ -47,6 +47,27 @@ export const listTransactions = async (req, res, next) => {
       })
     ]);
 
+    const legacyStockTrades = await prisma.stockTrade.findMany({
+      where: {
+        userId: req.user.sub,
+        tradeType: "SELL",
+        OR: [
+          { syncTxId: null },
+          { syncTxId: { notIn: transactionIds } }
+        ]
+      },
+      select: {
+        id: true,
+        syncTxId: true,
+        symbol: true,
+        platform: true,
+        tradeType: true,
+        netPnlPaise: true,
+        totalChargesPaise: true,
+        date: true
+      }
+    });
+
     const stockTradeByTxId = new Map(
       linkedStockTrades
         .filter((trade) => Boolean(trade.syncTxId))
@@ -59,11 +80,46 @@ export const listTransactions = async (req, res, next) => {
         .map((fund) => [fund.syncTxId, fund])
     );
 
-    const enrichedItems = items.map((item) => ({
-      ...item,
-      linkedStockTrade: stockTradeByTxId.get(item.id) || null,
-      linkedMutualFund: mutualFundByTxId.get(item.id) || null
-    }));
+    const toDateKey = (value) => new Date(value).toISOString().slice(0, 10);
+
+    const legacyCandidatesByKey = new Map();
+    legacyStockTrades.forEach((trade) => {
+      const key = `${toDateKey(trade.date)}|${Math.abs(trade.netPnlPaise || 0)}|${(trade.platform || "").trim().toLowerCase()}`;
+      const list = legacyCandidatesByKey.get(key) || [];
+      list.push(trade);
+      legacyCandidatesByKey.set(key, list);
+    });
+
+    const consumedLegacyTradeIds = new Set();
+
+    const enrichedItems = items.map((item) => {
+      let linkedStockTrade = stockTradeByTxId.get(item.id) || null;
+
+      if (!linkedStockTrade) {
+        const categoryName = (item.category?.name || "").toLowerCase();
+        const note = (item.note || "").toLowerCase();
+        const looksLikeStockPnl = categoryName.includes("realized") || note.includes("net p&l");
+
+        if (looksLikeStockPnl && ["INCOME", "EXPENSE"].includes(item.type)) {
+          const platformMatch = note.match(/platform:\s*([^|]+)/i);
+          const platform = (platformMatch?.[1] || "").trim().toLowerCase();
+          const key = `${toDateKey(item.date)}|${Math.abs(item.amountPaise || 0)}|${platform}`;
+          const candidates = legacyCandidatesByKey.get(key) || [];
+          const candidate = candidates.find((trade) => !consumedLegacyTradeIds.has(trade.id));
+
+          if (candidate) {
+            linkedStockTrade = candidate;
+            consumedLegacyTradeIds.add(candidate.id);
+          }
+        }
+      }
+
+      return {
+        ...item,
+        linkedStockTrade,
+        linkedMutualFund: mutualFundByTxId.get(item.id) || null
+      };
+    });
 
     return ok(res, enrichedItems);
   } catch (error) {

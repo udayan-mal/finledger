@@ -39,9 +39,64 @@ export const listStockTrades = async (req, res, next) => {
 
     const txTypeById = new Map(linkedTransactions.map((tx) => [tx.id, tx.type]));
 
+    const legacySellTrades = trades.filter((trade) => trade.tradeType === "SELL" && !trade.syncTxId);
+    const legacyAmounts = [...new Set(legacySellTrades.map((trade) => Math.abs(trade.netPnlPaise || 0)).filter(Boolean))];
+
+    const legacyTransactions = legacyAmounts.length
+      ? await prisma.transaction.findMany({
+          where: {
+            userId: req.user.sub,
+            type: { in: ["INCOME", "EXPENSE"] },
+            amountPaise: { in: legacyAmounts }
+          },
+          select: {
+            id: true,
+            type: true,
+            amountPaise: true,
+            date: true,
+            note: true,
+            category: {
+              select: {
+                name: true
+              }
+            }
+          }
+        })
+      : [];
+
+    const toDateKey = (value) => new Date(value).toISOString().slice(0, 10);
+
+    const legacyTxMatchesByKey = new Map();
+    legacyTransactions.forEach((tx) => {
+      const categoryName = (tx.category?.name || "").toLowerCase();
+      const note = (tx.note || "").toLowerCase();
+      const looksLikeStockPnl = categoryName.includes("realized") || note.includes("net p&l");
+
+      if (!looksLikeStockPnl) return;
+
+      const platformMatch = note.match(/platform:\s*([^|]+)/i);
+      const platform = (platformMatch?.[1] || "").trim().toLowerCase();
+      const key = `${toDateKey(tx.date)}|${Math.abs(tx.amountPaise)}|${platform}`;
+      const list = legacyTxMatchesByKey.get(key) || [];
+      list.push(tx.type);
+      legacyTxMatchesByKey.set(key, list);
+    });
+
     const normalizedTrades = trades.map((trade) => {
       const linkedTxType = trade.syncTxId ? txTypeById.get(trade.syncTxId) : null;
-      const shouldBeLoss = trade.tradeType === "SELL" && linkedTxType === "EXPENSE";
+      let inferredType = linkedTxType;
+
+      if (!inferredType && trade.tradeType === "SELL") {
+        const key = `${toDateKey(trade.date)}|${Math.abs(trade.netPnlPaise || 0)}|${(trade.platform || "").trim().toLowerCase()}`;
+        const matchedTypes = legacyTxMatchesByKey.get(key) || [];
+        if (matchedTypes.includes("EXPENSE")) {
+          inferredType = "EXPENSE";
+        } else if (matchedTypes.includes("INCOME")) {
+          inferredType = "INCOME";
+        }
+      }
+
+      const shouldBeLoss = trade.tradeType === "SELL" && inferredType === "EXPENSE";
 
       if (shouldBeLoss && trade.netPnlPaise > 0) {
         return {

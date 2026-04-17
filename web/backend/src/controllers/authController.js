@@ -48,12 +48,12 @@ export const login = async (req, res, next) => {
   try {
     const user = await prisma.user.findUnique({ where: { email: req.body.email } });
     if (!user) {
-      return fail(res, "Invalid credentials", 401, "UNAUTHORIZED");
+      return fail(res, "Email not registered", 401, "UNAUTHORIZED");
     }
 
     const valid = await bcrypt.compare(req.body.password, user.passwordHash);
     if (!valid) {
-      return fail(res, "Invalid credentials", 401, "UNAUTHORIZED");
+      return fail(res, "Incorrect password", 401, "UNAUTHORIZED");
     }
 
     const auth = buildAuthResponse(user);
