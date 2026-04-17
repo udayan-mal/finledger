@@ -167,7 +167,7 @@ export default function DashboardPage() {
   const [showSipForm, setShowSipForm] = useState(false);
   const [sipForm, setSipForm] = useState({
     fundName: "",
-    amountPaise: "10000",
+    amountRupees: "100",
     frequency: "MONTHLY",
     dueDay: "15",
     accountId: "",
@@ -218,7 +218,7 @@ export default function DashboardPage() {
     try {
       await api.post("/sip-plans", {
         fundName: sipForm.fundName,
-        amountPaise: Math.round(parseFloat(sipForm.amountPaise) * 100),
+        amountPaise: Math.round(parseFloat(sipForm.amountRupees) * 100),
         frequency: sipForm.frequency,
         dueDay: parseInt(sipForm.dueDay, 10),
         accountId: sipForm.accountId || null,
@@ -226,7 +226,7 @@ export default function DashboardPage() {
         type: sipForm.type
       });
       setShowSipForm(false);
-      setSipForm((current) => ({ ...current, fundName: "", amountPaise: "10000" }));
+      setSipForm((current) => ({ ...current, fundName: "", amountRupees: "100" }));
       await fetchDashboard();
     } catch (err) {
       alert(err.response?.data?.error || "Failed to create SIP plan.");
@@ -347,8 +347,8 @@ export default function DashboardPage() {
                 type="number"
                 min="1"
                 className="w-full bg-[#12121f] border border-outline-variant/20 focus:border-[#C9A84C] focus:ring-1 focus:ring-[#C9A84C]/50 text-sm py-3 px-4 rounded-lg text-on-surface outline-none"
-                value={sipForm.amountPaise ? (sipForm.amountPaise / 100) : ""}
-                onChange={(e) => setSipForm((current) => ({ ...current, amountPaise: e.target.value ? String(Math.round(parseFloat(e.target.value) * 100)) : "" }))}
+                value={sipForm.amountRupees}
+                onChange={(e) => setSipForm((current) => ({ ...current, amountRupees: e.target.value }))}
                 placeholder="100"
                 required
               />
