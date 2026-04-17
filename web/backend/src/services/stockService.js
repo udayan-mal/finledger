@@ -1,4 +1,4 @@
-export const buildStockTradePayload = ({ symbol, tradeType, platform, totalChargesPaise = 0, netPnlPaise = 0, date, userId }) => {
+export const buildStockTradePayload = ({ symbol, tradeType, platform, totalChargesPaise = 0, netPnlPaise = 0, syncTxId, date, userId }) => {
   return {
     userId,
     symbol: symbol.toUpperCase(),
@@ -6,6 +6,7 @@ export const buildStockTradePayload = ({ symbol, tradeType, platform, totalCharg
     platform,
     totalChargesPaise: Number(totalChargesPaise),
     netPnlPaise: Number(netPnlPaise),
+    syncTxId,
     date: new Date(date)
   };
 };

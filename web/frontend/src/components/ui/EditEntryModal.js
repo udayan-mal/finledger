@@ -25,6 +25,7 @@ export default function EditEntryModal({ isOpen, onClose, onSuccess, entryType, 
   const [stockType, setStockType] = useState("BUY");
   const [stockPlatform, setStockPlatform] = useState("Zerodha");
   const [stockCharges, setStockCharges] = useState("");
+  const [stockPnlType, setStockPnlType] = useState("PROFIT");
   const [stockPnlAmount, setStockPnlAmount] = useState("");
 
   // MF STATE
@@ -58,7 +59,8 @@ export default function EditEntryModal({ isOpen, onClose, onSuccess, entryType, 
         setStockType(entryData.tradeType);
         setStockPlatform(entryData.platform || "Zerodha");
         setStockCharges((entryData.totalChargesPaise / 100).toString());
-        setStockPnlAmount(((entryData.netPnlPaise || 0) / 100).toString().replace("-", ""));
+        setStockPnlType((entryData.netPnlPaise || 0) < 0 ? "LOSS" : "PROFIT");
+        setStockPnlAmount((Math.abs(entryData.netPnlPaise || 0) / 100).toString());
         setTxDate(entryData.date.split("T")[0]);
       } else if (entryType === "MUTUAL_FUND") {
         setFundName(entryData.fundName);
@@ -97,13 +99,19 @@ export default function EditEntryModal({ isOpen, onClose, onSuccess, entryType, 
           categoryId
         });
       } else if (entryType === "STOCK") {
-        // Just directly patching StockTrade (Note: backend doesn't automatically update linked transaction right now, user accepts this as a journal)
+        const rawNetPnlPaise = stockType === "SELL"
+          ? Math.abs(Math.round(parseFloat(stockPnlAmount || 0) * 100))
+          : 0;
+        const signedNetPnlPaise = stockType === "SELL"
+          ? (stockPnlType === "LOSS" ? -rawNetPnlPaise : rawNetPnlPaise)
+          : 0;
+
         await api.patch(`/stock-trades/${entryData.id}`, {
           symbol: stockSymbol.toUpperCase(),
           tradeType: stockType,
           platform: stockPlatform,
           totalChargesPaise: stockCharges ? Math.round(parseFloat(stockCharges) * 100) : 0,
-          netPnlPaise: stockType === "SELL" ? Math.round(parseFloat(stockPnlAmount || 0) * 100) : 0,
+          netPnlPaise: signedNetPnlPaise,
           date: new Date(txDate).toISOString()
         });
       } else if (entryType === "MUTUAL_FUND") {
@@ -219,9 +227,18 @@ export default function EditEntryModal({ isOpen, onClose, onSuccess, entryType, 
                   </div>
                </div>
                {stockType === "SELL" && (
-                 <div>
-                    <label className={labelClass}>Net P&L (₹)</label>
-                    <input type="number" step="0.01" className={inputClass} value={stockPnlAmount} onChange={e => setStockPnlAmount(e.target.value)} />
+                 <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className={labelClass}>Result</label>
+                      <select className={inputClass} value={stockPnlType} onChange={e => setStockPnlType(e.target.value)}>
+                        <option value="PROFIT">Profit</option>
+                        <option value="LOSS">Loss</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className={labelClass}>Net P&L (₹)</label>
+                      <input type="number" step="0.01" className={inputClass} value={stockPnlAmount} onChange={e => setStockPnlAmount(e.target.value)} />
+                    </div>
                  </div>
                )}
             </div>

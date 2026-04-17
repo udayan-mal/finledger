@@ -13,6 +13,32 @@ const DEFAULT_EXPENSE_CATEGORIES = [
 
 const DEFAULT_INCOME_CATEGORIES = ["Salary", "Business", "Freelance", "Investment", "Cashback", "Other Income"];
 
+const PREFERRED_ACCOUNT_ORDER = ["kotak", "sbi", "slice"];
+
+const normalizeAccountName = (name) => (name || "").trim().toLowerCase();
+
+const sortAccountsForQuickAdd = (accountList) => {
+  return [...accountList].sort((a, b) => {
+    const aName = normalizeAccountName(a.name);
+    const bName = normalizeAccountName(b.name);
+    const aPriority = PREFERRED_ACCOUNT_ORDER.indexOf(aName);
+    const bPriority = PREFERRED_ACCOUNT_ORDER.indexOf(bName);
+
+    if (aPriority !== -1 || bPriority !== -1) {
+      if (aPriority === -1) return 1;
+      if (bPriority === -1) return -1;
+      return aPriority - bPriority;
+    }
+
+    return aName.localeCompare(bName);
+  });
+};
+
+const getDefaultAccountId = (accountList) => {
+  const preferred = accountList.find((acc) => normalizeAccountName(acc.name) === "kotak");
+  return preferred?.id || accountList[0]?.id || "";
+};
+
 export default function AddEntryModal({ isOpen, onClose, onSuccess }) {
   const [activeTab, setActiveTab] = useState("Transaction");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -70,7 +96,9 @@ export default function AddEntryModal({ isOpen, onClose, onSuccess }) {
           { name: "Slice", type: "WALLET", balancePaise: 0 }
         ];
         
-        const missing = defaults.filter(d => !accs.find(a => a.name === d.name));
+        const missing = defaults.filter(
+          d => !accs.find(a => normalizeAccountName(a.name) === normalizeAccountName(d.name))
+        );
         
         if (missing.length > 0) {
           const created = await Promise.all(
@@ -80,10 +108,12 @@ export default function AddEntryModal({ isOpen, onClose, onSuccess }) {
           accs = [...accs, ...newAccs];
         }
 
-        setAccounts(accs);
+        const sortedAccounts = sortAccountsForQuickAdd(accs);
+
+        setAccounts(sortedAccounts);
         setCategories(cats);
-        if (accs.length > 0) {
-          setSelectedAccountId(accs[0].id);
+        if (sortedAccounts.length > 0) {
+          setSelectedAccountId(getDefaultAccountId(sortedAccounts));
         }
       });
     }
@@ -146,7 +176,12 @@ export default function AddEntryModal({ isOpen, onClose, onSuccess }) {
         if (!stockSymbol) throw new Error("Missing stock symbol");
         
         const totalChargesPaise = stockCharges ? Math.round(parseFloat(stockCharges) * 100) : 0;
-        const netPnlPaise = (stockType === "SELL" && stockPnlAmount) ? Math.round(parseFloat(stockPnlAmount) * 100) : 0;
+        const rawNetPnlPaise = (stockType === "SELL" && stockPnlAmount)
+          ? Math.abs(Math.round(parseFloat(stockPnlAmount) * 100))
+          : 0;
+        const netPnlPaise = stockType === "SELL"
+          ? (stockPnlType === "LOSS" ? -rawNetPnlPaise : rawNetPnlPaise)
+          : 0;
 
         // Automatically create a ledger transaction for stock activity to update Main Dashboard
         let syncTxId = undefined;
@@ -160,7 +195,7 @@ export default function AddEntryModal({ isOpen, onClose, onSuccess }) {
            catName = "Stock Trade";
         } else {
            txnType = stockPnlType === "PROFIT" ? "INCOME" : "EXPENSE";
-           amountPaise = netPnlPaise;
+            amountPaise = rawNetPnlPaise;
            catName = stockPnlType === "PROFIT" ? "Realized Gain" : "Realized Loss";
         }
 
@@ -178,8 +213,8 @@ export default function AddEntryModal({ isOpen, onClose, onSuccess }) {
           type: txnType,
           amountPaise: amountPaise,
           date: new Date(date).toISOString(),
-          description: `${stockSymbol.toUpperCase()} ${stockType}`,
-          note: `Platform: ${stockPlatform} | ${stockType === "BUY" ? "Charges Paid" : "Net P&L"}`
+          description: stockSymbol.toUpperCase(),
+          note: `Symbol: ${stockSymbol.toUpperCase()} | Platform: ${stockPlatform} | ${stockType === "BUY" ? "Charges Paid" : `${stockPnlType === "PROFIT" ? "Profit" : "Loss"} Net P&L`}`
         });
         syncTxId = txRes.data.data.id;
 

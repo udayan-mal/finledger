@@ -56,6 +56,16 @@ export default function TransactionsPage() {
     });
   };
 
+  const getDisplayDescription = (tx) => {
+    const directDescription = (tx.description || "").trim();
+    if (directDescription) return directDescription;
+
+    const symbolMatch = (tx.note || "").match(/Symbol:\s*([A-Za-z0-9.-]+)/i);
+    if (symbolMatch?.[1]) return symbolMatch[1].toUpperCase();
+
+    return "-None-";
+  };
+
   const exportCSV = () => {
     if (filteredData.length === 0) {
       alert("No data to export based on current filters.");
@@ -217,7 +227,7 @@ export default function TransactionsPage() {
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <p className="text-sm text-on-surface font-medium truncate max-w-[200px]">{tx.description || "-None-"}</p>
+                      <p className="text-sm text-on-surface font-medium truncate max-w-[200px]">{getDisplayDescription(tx)}</p>
                       {tx.note && <p className="text-xs text-on-surface-variant/50 truncate max-w-[200px] mt-0.5">{tx.note}</p>}
                     </td>
                     <td className={`px-6 py-4 font-mono text-sm font-bold text-right whitespace-nowrap ${
