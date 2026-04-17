@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
+import { api } from "@/lib/api";
 import { apiGetCached } from "@/lib/api";
 import ExpenseAreaChart from "@/components/charts/ExpenseAreaChart";
 
@@ -16,6 +17,15 @@ const fmtINR = (paise) => {
 const fmtINRDecimal = (paise) => {
   const rupees = (paise || 0) / 100;
   return `₹${rupees.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+};
+
+const fmtShortDate = (dateString) => {
+  if (!dateString) return "";
+  return new Date(dateString).toLocaleDateString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric"
+  });
 };
 
 /* ──────────────────────────────────────────────
@@ -153,6 +163,18 @@ export default function DashboardPage() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [accounts, setAccounts] = useState([]);
+  const [showSipForm, setShowSipForm] = useState(false);
+  const [sipForm, setSipForm] = useState({
+    fundName: "",
+    amountPaise: "10000",
+    frequency: "MONTHLY",
+    nextDue: new Date().toISOString().split("T")[0],
+    accountId: "",
+    platform: "Zerodha",
+    type: "SIP"
+  });
+  const [sipActionBusy, setSipActionBusy] = useState(null);
 
   const fetchDashboard = useCallback(async () => {
     try {
@@ -173,9 +195,55 @@ export default function DashboardPage() {
     }
   }, []);
 
+  const fetchAccounts = useCallback(async () => {
+    try {
+      const res = await apiGetCached("/accounts", { ttlMs: 30000 });
+      const accountData = res.data?.data || res.data || [];
+      setAccounts(Array.isArray(accountData) ? accountData : []);
+    } catch {
+      setAccounts([]);
+    }
+  }, []);
+
   useEffect(() => {
     fetchDashboard();
-  }, [fetchDashboard]);
+    fetchAccounts();
+  }, [fetchDashboard, fetchAccounts]);
+
+  const sipReminders = data?.sipReminders || [];
+  const dueSipReminders = sipReminders.filter((item) => item.isDueToday || item.isOverdue);
+
+  const handleSipFormSubmit = async (event) => {
+    event.preventDefault();
+    try {
+      await api.post("/sip-plans", {
+        fundName: sipForm.fundName,
+        amountPaise: Math.round(parseFloat(sipForm.amountPaise) * 100),
+        frequency: sipForm.frequency,
+        nextDue: new Date(sipForm.nextDue).toISOString(),
+        accountId: sipForm.accountId || null,
+        platform: sipForm.platform,
+        type: sipForm.type
+      });
+      setShowSipForm(false);
+      setSipForm((current) => ({ ...current, fundName: "", amountPaise: "10000" }));
+      await fetchDashboard();
+    } catch (err) {
+      alert(err.response?.data?.error || "Failed to create SIP plan.");
+    }
+  };
+
+  const runSipAction = async (planId, action, body = {}) => {
+    try {
+      setSipActionBusy(`${planId}:${action}`);
+      await api.post(`/sip-plans/${planId}/${action}`, body);
+      await fetchDashboard();
+    } catch (err) {
+      alert(err.response?.data?.error || `Failed to ${action} SIP.`);
+    } finally {
+      setSipActionBusy(null);
+    }
+  };
 
   // Extract metrics (fallback to zeros)
   const m = data?.metrics || {};
@@ -194,6 +262,166 @@ export default function DashboardPage() {
         <h1 className="font-headline text-3xl text-on-surface">Dashboard</h1>
         <p className="text-on-surface-variant/60 text-sm mt-1">Your complete financial overview at a glance</p>
       </div>
+
+      <section className="glass-panel rounded-xl p-5 lg:p-6 border border-white/5">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="material-symbols-outlined text-[#C9A84C] text-[18px]">schedule</span>
+              <h2 className="font-headline text-xl text-on-surface">Scheduled SIP</h2>
+            </div>
+            <p className="text-on-surface-variant/50 text-sm font-mono">
+              Create once. Get a monthly one-tap confirmation banner for due funds.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowSipForm((value) => !value)}
+            className="px-4 py-2 rounded-lg font-mono text-xs uppercase tracking-widest bg-[#C9A84C] text-[#0d0d1a] font-bold hover:bg-[#d4b55b] transition-colors"
+          >
+            {showSipForm ? "Close Plan Form" : "Create SIP Plan"}
+          </button>
+        </div>
+
+        {dueSipReminders.length > 0 && (
+          <div className="mt-5 grid grid-cols-1 gap-3">
+            {dueSipReminders.map((plan) => (
+              <div key={plan.id} className="rounded-xl border border-[#C9A84C]/20 bg-[#12121f] p-4 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="font-mono text-sm font-bold text-on-surface">{plan.fundName}</span>
+                    <span className={`font-mono text-[9px] uppercase tracking-widest px-2 py-0.5 rounded-sm border ${plan.isOverdue ? "bg-red-500/10 text-red-400 border-red-500/20" : "bg-yellow-500/10 text-yellow-400 border-yellow-500/20"}`}>
+                      {plan.isOverdue ? "Overdue" : "Due Today"}
+                    </span>
+                  </div>
+                  <p className="text-xs text-on-surface-variant/60 font-mono uppercase tracking-widest">
+                    {fmtINR(plan.amountPaise)} • {plan.frequency} • {plan.platform} • Next due {fmtShortDate(plan.nextDue)}
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={sipActionBusy === `${plan.id}:mark-paid`}
+                    onClick={() => runSipAction(plan.id, "mark-paid")}
+                    className="px-4 py-2 rounded-lg font-mono text-xs uppercase tracking-widest bg-green-500/15 text-green-300 border border-green-500/20 hover:bg-green-500/25 transition-colors disabled:opacity-50"
+                  >
+                    Mark Paid
+                  </button>
+                  <button
+                    type="button"
+                    disabled={sipActionBusy === `${plan.id}:skip`}
+                    onClick={() => runSipAction(plan.id, "skip", { note: "Skipped from dashboard" })}
+                    className="px-4 py-2 rounded-lg font-mono text-xs uppercase tracking-widest bg-red-500/10 text-red-300 border border-red-500/20 hover:bg-red-500/20 transition-colors disabled:opacity-50"
+                  >
+                    Skip
+                  </button>
+                  <button
+                    type="button"
+                    disabled={sipActionBusy === `${plan.id}:snooze`}
+                    onClick={() => runSipAction(plan.id, "snooze", { snoozeDays: 3, note: "Snoozed from dashboard" })}
+                    className="px-4 py-2 rounded-lg font-mono text-xs uppercase tracking-widest bg-[#C9A84C]/10 text-[#C9A84C] border border-[#C9A84C]/20 hover:bg-[#C9A84C]/20 transition-colors disabled:opacity-50"
+                  >
+                    Snooze 3d
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {showSipForm && (
+          <form onSubmit={handleSipFormSubmit} className="mt-5 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-[10px] font-mono uppercase tracking-widest text-[#F1F0EC]/60 mb-2">Fund Name</label>
+              <input
+                className="w-full bg-[#12121f] border border-outline-variant/20 focus:border-[#C9A84C] focus:ring-1 focus:ring-[#C9A84C]/50 text-sm py-3 px-4 rounded-lg text-on-surface outline-none"
+                value={sipForm.fundName}
+                onChange={(e) => setSipForm((current) => ({ ...current, fundName: e.target.value }))}
+                placeholder="Invesco India Midcap Fund"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] font-mono uppercase tracking-widest text-[#F1F0EC]/60 mb-2">Amount (₹)</label>
+              <input
+                type="number"
+                min="1"
+                className="w-full bg-[#12121f] border border-outline-variant/20 focus:border-[#C9A84C] focus:ring-1 focus:ring-[#C9A84C]/50 text-sm py-3 px-4 rounded-lg text-on-surface outline-none"
+                value={sipForm.amountPaise ? (sipForm.amountPaise / 100) : ""}
+                onChange={(e) => setSipForm((current) => ({ ...current, amountPaise: e.target.value ? String(Math.round(parseFloat(e.target.value) * 100)) : "" }))}
+                placeholder="100"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] font-mono uppercase tracking-widest text-[#F1F0EC]/60 mb-2">Next Due Date</label>
+              <input
+                type="date"
+                className="w-full bg-[#12121f] border border-outline-variant/20 focus:border-[#C9A84C] focus:ring-1 focus:ring-[#C9A84C]/50 text-sm py-3 px-4 rounded-lg text-on-surface outline-none"
+                value={sipForm.nextDue}
+                onChange={(e) => setSipForm((current) => ({ ...current, nextDue: e.target.value }))}
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] font-mono uppercase tracking-widest text-[#F1F0EC]/60 mb-2">Frequency</label>
+              <select
+                className="w-full bg-[#12121f] border border-outline-variant/20 focus:border-[#C9A84C] focus:ring-1 focus:ring-[#C9A84C]/50 text-sm py-3 px-4 rounded-lg text-on-surface outline-none"
+                value={sipForm.frequency}
+                onChange={(e) => setSipForm((current) => ({ ...current, frequency: e.target.value }))}
+              >
+                <option value="MONTHLY">Monthly</option>
+                <option value="QUARTERLY">Quarterly</option>
+                <option value="YEARLY">Yearly</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-[10px] font-mono uppercase tracking-widest text-[#F1F0EC]/60 mb-2">Account</label>
+              <select
+                className="w-full bg-[#12121f] border border-outline-variant/20 focus:border-[#C9A84C] focus:ring-1 focus:ring-[#C9A84C]/50 text-sm py-3 px-4 rounded-lg text-on-surface outline-none"
+                value={sipForm.accountId}
+                onChange={(e) => setSipForm((current) => ({ ...current, accountId: e.target.value }))}
+              >
+                <option value="">Use default account</option>
+                {accounts.map((account) => (
+                  <option key={account.id} value={account.id}>{account.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-[10px] font-mono uppercase tracking-widest text-[#F1F0EC]/60 mb-2">Platform</label>
+              <select
+                className="w-full bg-[#12121f] border border-outline-variant/20 focus:border-[#C9A84C] focus:ring-1 focus:ring-[#C9A84C]/50 text-sm py-3 px-4 rounded-lg text-on-surface outline-none"
+                value={sipForm.platform}
+                onChange={(e) => setSipForm((current) => ({ ...current, platform: e.target.value }))}
+              >
+                <option value="Zerodha">Zerodha</option>
+                <option value="Groww">Groww</option>
+                <option value="Dhan">Dhan</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-[10px] font-mono uppercase tracking-widest text-[#F1F0EC]/60 mb-2">Type</label>
+              <select
+                className="w-full bg-[#12121f] border border-outline-variant/20 focus:border-[#C9A84C] focus:ring-1 focus:ring-[#C9A84C]/50 text-sm py-3 px-4 rounded-lg text-on-surface outline-none"
+                value={sipForm.type}
+                onChange={(e) => setSipForm((current) => ({ ...current, type: e.target.value }))}
+              >
+                <option value="SIP">SIP</option>
+                <option value="LUMPSUM">Lumpsum</option>
+              </select>
+            </div>
+            <div className="md:col-span-2 xl:col-span-3 flex justify-end">
+              <button
+                type="submit"
+                className="px-5 py-3 rounded-lg font-mono text-xs uppercase tracking-widest bg-[#C9A84C] text-[#0d0d1a] font-bold hover:bg-[#d4b55b] transition-colors"
+              >
+                Save SIP Plan
+              </button>
+            </div>
+          </form>
+        )}
+      </section>
 
       {/* ── 6 Metric Cards ── */}
       <section className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">

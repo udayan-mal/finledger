@@ -6,7 +6,7 @@ export const getDashboardSummary = async (userId) => {
   const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 6, 1);
 
   // Fetch all data in parallel
-  const [accounts, monthlyTransactions, allTransactionsLast6M, stockTrades, mutualFunds, recurringExpenses] = await Promise.all([
+  const [accounts, monthlyTransactions, allTransactionsLast6M, stockTrades, mutualFunds, recurringExpenses, sipPlans] = await Promise.all([
     prisma.account.findMany({
       where: { userId },
       select: { id: true, type: true, balancePaise: true, name: true }
@@ -29,6 +29,12 @@ export const getDashboardSummary = async (userId) => {
     }),
     prisma.recurringExpense.findMany({
       where: { userId, active: true },
+      orderBy: { nextDue: "asc" },
+      take: 8
+    }),
+    prisma.sipPlan.findMany({
+      where: { userId, active: true },
+      include: { account: { select: { id: true, name: true, type: true } } },
       orderBy: { nextDue: "asc" },
       take: 8
     })
@@ -121,6 +127,31 @@ export const getDashboardSummary = async (userId) => {
     active: r.active
   }));
 
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+
+  const sipReminders = sipPlans.map((plan) => {
+    const nextDue = new Date(plan.nextDue);
+    nextDue.setHours(0, 0, 0, 0);
+    const isOverdue = nextDue < today;
+    const isDueToday = nextDue >= today && nextDue < tomorrow;
+    return {
+      id: plan.id,
+      fundName: plan.fundName,
+      amountPaise: plan.amountPaise,
+      frequency: plan.frequency,
+      nextDue: plan.nextDue.toISOString(),
+      platform: plan.platform,
+      type: plan.type,
+      active: plan.active,
+      account: plan.account,
+      isDueToday,
+      isOverdue
+    };
+  });
+
   return {
     metrics: {
       netWorthPaise,
@@ -138,7 +169,10 @@ export const getDashboardSummary = async (userId) => {
     incomeBreakdown,
     holdings: holdings.slice(0, 10),
     stocks: stocks.slice(0, 10),
-    upcoming
+    upcoming,
+    sipReminders,
+    sipDueCount: sipReminders.filter((item) => item.isDueToday || item.isOverdue).length,
+    sipOverdueCount: sipReminders.filter((item) => item.isOverdue).length
   };
 };
 

@@ -13,6 +13,7 @@ import aiRoutes from "./aiRoutes.js";
 import uploadRoutes from "./uploadRoutes.js";
 import categoryRoutes from "./categoryRoutes.js";
 import recurringRoutes from "./recurringRoutes.js";
+import sipRoutes from "./sipRoutes.js";
 
 const router = Router();
 
@@ -30,5 +31,6 @@ router.use("/ai", aiRoutes);
 router.use("/upload", uploadRoutes);
 router.use("/categories", categoryRoutes);
 router.use("/recurring", recurringRoutes);
+router.use("/sip-plans", sipRoutes);
 
 export default router;

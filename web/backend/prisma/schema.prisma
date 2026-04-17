@@ -21,6 +21,8 @@ model User {
   categories          Category[]
   stockTrades         StockTrade[]
   mutualFunds         MutualFund[]
+  sipPlans            SipPlan[]
+  sipExecutions       SipExecution[]
   budgets             Budget[]
   recurringExpenses   RecurringExpense[]
   netWorthSnapshots   NetWorthSnapshot[]
@@ -38,6 +40,7 @@ model Account {
   updatedAt    DateTime      @updatedAt
   user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   transactions Transaction[]
+  sipPlans     SipPlan[]
 
   @@index([userId])
 }
@@ -133,6 +136,44 @@ model MutualFund {
   user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, date])
+}
+
+model SipPlan {
+  id                String         @id @default(uuid())
+  userId            String
+  accountId         String?
+  fundName          String
+  amountPaise       Int
+  frequency         String         @default("MONTHLY")
+  nextDue           DateTime
+  platform          String         @default("Zerodha")
+  type              String         @default("SIP")
+  active            Boolean        @default(true)
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  user              User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account           Account?       @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  executions        SipExecution[]
+
+  @@index([userId, active, nextDue])
+}
+
+model SipExecution {
+  id                String         @id @default(uuid())
+  userId            String
+  sipPlanId         String
+  transactionId     String?
+  mutualFundId      String?
+  status            String
+  amountPaise       Int
+  executedAt        DateTime       @default(now())
+  note              String?
+  createdAt         DateTime       @default(now())
+  sipPlan           SipPlan        @relation(fields: [sipPlanId], references: [id], onDelete: Cascade)
+  user              User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, executedAt])
+  @@index([sipPlanId, executedAt])
 }
 
 model Budget {
