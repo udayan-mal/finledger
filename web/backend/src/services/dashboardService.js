@@ -6,7 +6,7 @@ export const getDashboardSummary = async (userId) => {
   const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 6, 1);
 
   // Fetch all data in parallel
-  const [accounts, monthlyTransactions, allTransactionsLast6M, stockTrades, mutualFunds, recurringExpenses, sipPlans, sipExecutions] = await Promise.all([
+  const [accounts, monthlyTransactions, allTransactionsLast6M, stockTrades, mutualFunds, recurringExpenses, sipPlans] = await Promise.all([
     prisma.account.findMany({
       where: { userId },
       select: { id: true, type: true, balancePaise: true, name: true }
@@ -38,16 +38,6 @@ export const getDashboardSummary = async (userId) => {
       orderBy: { nextDue: "asc" },
       take: 8
     }),
-    prisma.sipExecution.findMany({
-      where: { userId, status: "PAID" },
-      select: {
-        amountPaise: true,
-        executedAt: true,
-        sipPlan: { select: { amountPaise: true } }
-      },
-      orderBy: { executedAt: "desc" },
-      take: 200
-    })
   ]);
 
   // Calculate account balances by type
@@ -180,7 +170,9 @@ export const getDashboardSummary = async (userId) => {
     })
     .reduce((sum, item) => sum + item.amountPaise, 0);
 
-  const monthlyContributionTrend = buildMonthlyContributionTrend(sipExecutions);
+  const monthlyContributionTrend = buildMonthlyContributionTrend(
+    allTransactionsLast6M.filter((tx) => tx.type === "INVESTMENT")
+  );
 
   return {
     metrics: {
@@ -269,7 +261,7 @@ function calculateCategoryBreakdown(transactions) {
     .slice(0, 8); // Expanded from 5 to 8 for better visibility
 }
 
-function buildMonthlyContributionTrend(executions) {
+function buildMonthlyContributionTrend(transactions) {
   const months = [];
   for (let i = 5; i >= 0; i--) {
     const date = new Date();
@@ -284,12 +276,11 @@ function buildMonthlyContributionTrend(executions) {
 
   const totalByMonth = new Map(months.map((m) => [m.key, 0]));
 
-  executions.forEach((execution) => {
-    const date = new Date(execution.executedAt);
+  transactions.forEach((transaction) => {
+    const date = new Date(transaction.date);
     const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-    const canonicalAmountPaise = execution.sipPlan?.amountPaise || execution.amountPaise || 0;
     if (totalByMonth.has(key)) {
-      totalByMonth.set(key, totalByMonth.get(key) + canonicalAmountPaise);
+      totalByMonth.set(key, totalByMonth.get(key) + (transaction.amountPaise || 0));
     }
   });
 
