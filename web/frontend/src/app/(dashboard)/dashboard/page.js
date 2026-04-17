@@ -212,6 +212,7 @@ export default function DashboardPage() {
 
   const sipReminders = data?.sipReminders || [];
   const dueSipReminders = sipReminders.filter((item) => item.isDueToday || item.isOverdue);
+  const missedSipReminders = sipReminders.filter((item) => item.isOverdue);
   const monthlyContributionTrend = data?.monthlyContributionTrend || [];
 
   const handleSipFormSubmit = async (event) => {
@@ -470,6 +471,112 @@ export default function DashboardPage() {
           iconColor={(m.realizedPnlPaise || 0) >= 0 ? "text-green-400" : "text-red-400"}
           gradient={(m.realizedPnlPaise || 0) >= 0 ? "bg-green-500/10" : "bg-red-500/10"}
         />
+      </section>
+
+      <section className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        <div className="glass-panel rounded-xl p-6 lg:p-8">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-red-400 text-[20px]">event_busy</span>
+              <h2 className="font-headline text-xl text-on-surface">Missed SIPs</h2>
+            </div>
+            <p className="text-on-surface-variant/50 text-xs font-mono uppercase tracking-widest">Needs attention</p>
+          </div>
+
+          {missedSipReminders.length > 0 ? (
+            <div className="space-y-3 max-h-[320px] overflow-y-auto no-scrollbar pr-1">
+              {missedSipReminders.map((plan) => (
+                <div key={plan.id} className="rounded-xl border border-red-500/15 bg-[#12121f] p-4 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="font-mono text-sm font-bold text-on-surface">{plan.fundName}</span>
+                      <span className="font-mono text-[9px] uppercase tracking-widest px-2 py-0.5 rounded-sm border bg-red-500/10 text-red-300 border-red-500/20">
+                        Missed
+                      </span>
+                    </div>
+                    <p className="text-xs text-on-surface-variant/60 font-mono uppercase tracking-widest">
+                      {fmtINR(plan.amountPaise)} • {plan.frequency} • {plan.platform} • Due {fmtShortDate(plan.nextDue)}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={sipActionBusy === `${plan.id}:mark-paid`}
+                      onClick={() => runSipAction(plan.id, "mark-paid")}
+                      className="px-4 py-2 rounded-lg font-mono text-xs uppercase tracking-widest bg-green-500/15 text-green-300 border border-green-500/20 hover:bg-green-500/25 transition-colors disabled:opacity-50"
+                    >
+                      Pay Now
+                    </button>
+                    <button
+                      type="button"
+                      disabled={sipActionBusy === `${plan.id}:skip`}
+                      onClick={() => runSipAction(plan.id, "skip", { note: "Skipped from missed SIP panel" })}
+                      className="px-4 py-2 rounded-lg font-mono text-xs uppercase tracking-widest bg-red-500/10 text-red-300 border border-red-500/20 hover:bg-red-500/20 transition-colors disabled:opacity-50"
+                    >
+                      Skip
+                    </button>
+                    <button
+                      type="button"
+                      disabled={sipActionBusy === `${plan.id}:snooze`}
+                      onClick={() => runSipAction(plan.id, "snooze", { snoozeDays: 3, note: "Snoozed from missed SIP panel" })}
+                      className="px-4 py-2 rounded-lg font-mono text-xs uppercase tracking-widest bg-[#C9A84C]/10 text-[#C9A84C] border border-[#C9A84C]/20 hover:bg-[#C9A84C]/20 transition-colors disabled:opacity-50"
+                    >
+                      Snooze 3d
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-xl border border-white/5 bg-[#12121f] p-8 text-center">
+              <p className="font-headline text-lg text-green-300">No missed SIPs</p>
+              <p className="mt-2 text-xs font-mono uppercase tracking-widest text-on-surface-variant/50">All active plans are up to date</p>
+            </div>
+          )}
+        </div>
+
+        <div className="glass-panel rounded-xl p-6 lg:p-8">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-[#C9A84C] text-[20px]">balance</span>
+              <h2 className="font-headline text-xl text-on-surface">Realized vs Unrealized P&L</h2>
+            </div>
+            <p className="text-on-surface-variant/50 text-xs font-mono uppercase tracking-widest">Portfolio snapshot</p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
+            <div className="rounded-xl border border-white/5 bg-[#12121f] p-5">
+              <p className="text-[10px] font-mono uppercase tracking-widest text-on-surface-variant/50 mb-2">Realized P&L</p>
+              <p className={`font-mono text-3xl font-bold ${(m.realizedPnlPaise || 0) >= 0 ? "text-green-400" : "text-red-400"}`}>
+                {fmtINR(m.realizedPnlPaise || 0)}
+              </p>
+              <p className="mt-2 text-xs text-on-surface-variant/50 font-mono">From completed sell trades</p>
+            </div>
+            <div className="rounded-xl border border-white/5 bg-[#12121f] p-5">
+              <p className="text-[10px] font-mono uppercase tracking-widest text-on-surface-variant/50 mb-2">Unrealized P&L</p>
+              <p className="font-mono text-3xl font-bold text-blue-300">
+                {fmtINR(m.unrealizedPnlPaise || 0)}
+              </p>
+              <p className="mt-2 text-xs text-on-surface-variant/50 font-mono">Live pricing integration pending</p>
+            </div>
+          </div>
+
+          <div className="h-3 rounded-full overflow-hidden bg-[#12121f] border border-white/5 flex">
+            <div
+              className="h-full bg-gradient-to-r from-green-500 to-emerald-400"
+              style={{ width: `${(m.realizedPnlPaise || 0) > 0 ? 100 : 55}%` }}
+            />
+            <div
+              className="h-full bg-gradient-to-r from-blue-500 to-cyan-400"
+              style={{ width: `${(m.unrealizedPnlPaise || 0) >= 0 ? 45 : 55}%` }}
+            />
+          </div>
+
+          <div className="flex items-center justify-between mt-3 text-[10px] font-mono uppercase tracking-widest text-on-surface-variant/50">
+            <span>Realized</span>
+            <span>Unrealized</span>
+          </div>
+        </div>
       </section>
 
       <section className="glass-panel rounded-xl p-6 lg:p-8">
