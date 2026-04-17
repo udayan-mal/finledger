@@ -40,7 +40,11 @@ export const getDashboardSummary = async (userId) => {
     }),
     prisma.sipExecution.findMany({
       where: { userId, status: "PAID" },
-      select: { amountPaise: true, executedAt: true },
+      select: {
+        amountPaise: true,
+        executedAt: true,
+        sipPlan: { select: { amountPaise: true } }
+      },
       orderBy: { executedAt: "desc" },
       take: 200
     })
@@ -283,8 +287,9 @@ function buildMonthlyContributionTrend(executions) {
   executions.forEach((execution) => {
     const date = new Date(execution.executedAt);
     const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+    const canonicalAmountPaise = execution.sipPlan?.amountPaise || execution.amountPaise || 0;
     if (totalByMonth.has(key)) {
-      totalByMonth.set(key, totalByMonth.get(key) + execution.amountPaise);
+      totalByMonth.set(key, totalByMonth.get(key) + canonicalAmountPaise);
     }
   });
 

@@ -595,7 +595,7 @@ export default function DashboardPage() {
 
             return (
               <div key={item.month} className="flex flex-col items-center gap-2">
-                <div className="text-[10px] font-mono text-on-surface-variant/60">{item.amount > 0 ? `₹${Math.round(item.amount)}` : "-"}</div>
+                <div className="text-[10px] font-mono text-on-surface-variant/60">{item.amountPaise > 0 ? fmtINR(item.amountPaise) : "-"}</div>
                 <div className="w-full max-w-[56px] h-[90px] rounded-lg bg-[#12121f] border border-outline-variant/10 flex items-end justify-center p-1">
                   <div
                     className="w-full rounded-md bg-gradient-to-t from-[#C9A84C]/80 to-[#e6c364]"
