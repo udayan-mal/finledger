@@ -267,7 +267,7 @@ export default function DashboardPage() {
   const sipUpcomingCount = data?.sipUpcomingCount || 0;
   const cashRequiredThisMonthPaise = data?.cashRequiredThisMonthPaise || 0;
   const sipActivityThisMonth = data?.sipActivityThisMonth || [];
-  const sipActivitySummary = data?.sipActivitySummary || { total: 0, paid: 0, skipped: 0, snoozed: 0, amountPaise: 0 };
+  const sipActivitySummary = data?.sipActivitySummary || { total: 0, paid: 0, skipped: 0, snoozed: 0, amountPaise: 0, paidAmountPaise: 0 };
   const peakContribution = Math.max(0, ...monthlyContributionTrend.map((item) => item.amountPaise || 0));
 
   const totalMonthlyExpense = expenseBreakdown.reduce((s, e) => s + (e.amount || 0), 0);
@@ -599,24 +599,24 @@ export default function DashboardPage() {
         </div>
 
         <p className="mb-4 text-[10px] font-mono uppercase tracking-widest text-on-surface-variant/45">
-          {sipActivitySummary.total} events this month • Total activity amount {fmtINR(sipActivitySummary.amountPaise)}
+          {sipActivitySummary.total} events this month • Paid cash outflow {fmtINR(sipActivitySummary.paidAmountPaise)} • Source: execution log
         </p>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
           <div className="rounded-xl border border-white/5 bg-[#12121f] p-4">
-            <p className="text-[10px] font-mono uppercase tracking-widest text-on-surface-variant/50 mb-2">Activity Amount</p>
-            <p className="font-mono text-2xl font-bold text-on-surface">{fmtINR(sipActivitySummary.amountPaise)}</p>
+            <p className="text-[10px] font-mono uppercase tracking-widest text-on-surface-variant/50 mb-2">Paid Cash Outflow</p>
+            <p className="font-mono text-2xl font-bold text-on-surface">{fmtINR(sipActivitySummary.paidAmountPaise)}</p>
           </div>
           <div className="rounded-xl border border-white/5 bg-[#12121f] p-4">
-            <p className="text-[10px] font-mono uppercase tracking-widest text-on-surface-variant/50 mb-2">Paid</p>
+            <p className="text-[10px] font-mono uppercase tracking-widest text-on-surface-variant/50 mb-2">Paid Events</p>
             <p className="font-mono text-2xl font-bold text-green-400">{sipActivitySummary.paid}</p>
           </div>
           <div className="rounded-xl border border-white/5 bg-[#12121f] p-4">
-            <p className="text-[10px] font-mono uppercase tracking-widest text-on-surface-variant/50 mb-2">Skipped</p>
+            <p className="text-[10px] font-mono uppercase tracking-widest text-on-surface-variant/50 mb-2">Skipped Events</p>
             <p className="font-mono text-2xl font-bold text-red-400">{sipActivitySummary.skipped}</p>
           </div>
           <div className="rounded-xl border border-white/5 bg-[#12121f] p-4">
-            <p className="text-[10px] font-mono uppercase tracking-widest text-on-surface-variant/50 mb-2">Snoozed</p>
+            <p className="text-[10px] font-mono uppercase tracking-widest text-on-surface-variant/50 mb-2">Snoozed Events</p>
             <p className="font-mono text-2xl font-bold text-[#C9A84C]">{sipActivitySummary.snoozed}</p>
           </div>
         </div>

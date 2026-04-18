@@ -201,9 +201,10 @@ export const getDashboardSummary = async (userId) => {
       if (execution.status === "SKIPPED") summary.skipped += 1;
       if (execution.status === "SNOOZED") summary.snoozed += 1;
       summary.amountPaise += execution.amountPaise || 0;
+      if (execution.status === "PAID") summary.paidAmountPaise += execution.amountPaise || 0;
       return summary;
     },
-    { total: 0, paid: 0, skipped: 0, snoozed: 0, amountPaise: 0 }
+    { total: 0, paid: 0, skipped: 0, snoozed: 0, amountPaise: 0, paidAmountPaise: 0 }
   );
 
   return {
