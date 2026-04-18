@@ -176,6 +176,8 @@ export default function DashboardPage() {
   const [accounts, setAccounts] = useState([]);
   const [showSipForm, setShowSipForm] = useState(false);
   const [showReconciliationDetails, setShowReconciliationDetails] = useState(false);
+  const [showSipActivity, setShowSipActivity] = useState(false);
+  const [compactMode, setCompactMode] = useState(true);
   const [sipForm, setSipForm] = useState({
     fundName: "",
     amountRupees: "100",
@@ -285,16 +287,50 @@ export default function DashboardPage() {
   const totalMonthlyExpense = expenseBreakdown.reduce((s, e) => s + (e.amount || 0), 0);
   const totalMonthlyIncome = incomeBreakdown.reduce((s, e) => s + (e.amount || 0), 0);
 
+  const rootSpacing = compactMode ? "space-y-6 lg:space-y-8" : "space-y-10";
+  const panelPadding = compactMode ? "p-4 lg:p-5" : "p-6 lg:p-8";
+  const panelPaddingTight = compactMode ? "p-4 lg:p-5" : "p-5 lg:p-6";
+
   return (
-    <div className="space-y-10">
+    <div className={rootSpacing}>
 
       {/* ── Page Title ── */}
-      <div>
-        <h1 className="font-headline text-3xl text-on-surface">Dashboard</h1>
-        <p className="text-on-surface-variant/60 text-sm mt-1">Your complete financial overview at a glance</p>
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+        <div>
+          <h1 className="font-headline text-3xl text-on-surface">Dashboard</h1>
+          <p className="text-on-surface-variant/60 text-sm mt-1">Your complete financial overview at a glance</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setCompactMode((value) => !value)}
+          className="self-start px-3 py-1.5 rounded-md border border-white/10 bg-[#12121f] text-on-surface-variant hover:text-on-surface hover:border-white/20 text-[10px] font-mono uppercase tracking-widest transition-colors"
+        >
+          {compactMode ? "Expanded View" : "Compact View"}
+        </button>
       </div>
 
-      <section className="glass-panel rounded-xl p-5 lg:p-6 border border-white/5">
+      <section className="sticky top-2 z-30 glass-panel rounded-xl border border-white/10 bg-[#111125]/95 backdrop-blur-md p-3 lg:p-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 lg:gap-3">
+          <div className="rounded-lg border border-white/5 bg-[#12121f] p-3">
+            <p className="text-[9px] font-mono uppercase tracking-widest text-on-surface-variant/50">Income (Month)</p>
+            <p className="mt-1 font-mono text-lg text-green-400">{fmtINR(m.monthlyIncomePaise)}</p>
+          </div>
+          <div className="rounded-lg border border-white/5 bg-[#12121f] p-3">
+            <p className="text-[9px] font-mono uppercase tracking-widest text-on-surface-variant/50">Expense (Month)</p>
+            <p className="mt-1 font-mono text-lg text-red-400">{fmtINR(m.monthlyExpensePaise)}</p>
+          </div>
+          <div className="rounded-lg border border-white/5 bg-[#12121f] p-3">
+            <p className="text-[9px] font-mono uppercase tracking-widest text-on-surface-variant/50">Savings Rate</p>
+            <p className="mt-1 font-mono text-lg text-on-surface">{m.savingsRatePercent || 0}%</p>
+          </div>
+          <div className="rounded-lg border border-white/5 bg-[#12121f] p-3">
+            <p className="text-[9px] font-mono uppercase tracking-widest text-on-surface-variant/50">Cash Required</p>
+            <p className="mt-1 font-mono text-lg text-[#C9A84C]">{fmtINR(cashRequiredThisMonthPaise)}</p>
+          </div>
+        </div>
+      </section>
+
+      <section className={`glass-panel rounded-xl border border-white/5 ${panelPaddingTight}`}>
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 mb-1">
@@ -497,7 +533,65 @@ export default function DashboardPage() {
         />
       </section>
 
-      <section className="glass-panel rounded-xl p-5 lg:p-6 border border-white/5">
+      {/* ── 6 Metric Cards (moved up for visibility) ── */}
+      <section className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
+        <DashMetric
+          label="Total Net Worth"
+          value={fmtINR(m.netWorthPaise)}
+          subtitle="All assets combined"
+          icon="account_balance"
+          gradient="bg-[#C9A84C]/20"
+          valueColor="text-white"
+        />
+        <DashMetric
+          label="Total Income (Month)"
+          value={fmtINR(m.monthlyIncomePaise)}
+          subtitle="Current month"
+          icon="trending_up"
+          valueColor="text-green-400"
+          iconColor="text-green-400"
+          gradient="bg-green-500/10"
+        />
+        <DashMetric
+          label="Total Expenses (Month)"
+          value={fmtINR(m.monthlyExpensePaise)}
+          subtitle="Current month"
+          icon="trending_down"
+          valueColor="text-red-400"
+          iconColor="text-red-400"
+          gradient="bg-red-500/10"
+        />
+        <DashMetric
+          label="Portfolio Value"
+          value={fmtINR(m.portfolioValuePaise)}
+          subtitle={fmtINRDecimal(m.portfolioValuePaise)}
+          icon="pie_chart"
+          valueColor="text-[#C9A84C]"
+          iconColor="text-[#C9A84C]"
+          trend={parseFloat(m.portfolioPnlPercent || 0)}
+          trendLabel={`${m.portfolioPnlPercent || 0}% P&L`}
+          gradient="bg-[#C9A84C]/10"
+        />
+        <DashMetric
+          label="Bank + Cash Balance"
+          value={fmtINR(m.bankCashPaise)}
+          subtitle="Across all accounts"
+          icon="savings"
+          valueColor="text-blue-300"
+          iconColor="text-blue-300"
+          gradient="bg-blue-500/10"
+        />
+        <DashMetric
+          label="Savings Rate"
+          value={`${m.savingsRatePercent || 0}%`}
+          subtitle="Income – Expenses"
+          icon="speed"
+          valueColor={parseFloat(m.savingsRatePercent || 0) > 30 ? "text-green-400" : "text-white"}
+          iconColor={parseFloat(m.savingsRatePercent || 0) > 30 ? "text-green-400" : "text-white"}
+        />
+      </section>
+
+      <section className={`glass-panel rounded-xl border border-white/5 ${panelPaddingTight}`}>
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 mb-4">
           <div className="flex items-center gap-2">
             <span className="material-symbols-outlined text-[#C9A84C] text-[18px]">rule</span>
@@ -590,8 +684,8 @@ export default function DashboardPage() {
         )}
       </section>
 
-      <section className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        <div className="glass-panel rounded-xl p-6 lg:p-8">
+      <section className="grid grid-cols-1 xl:grid-cols-2 gap-4 lg:gap-6">
+        <div className={`glass-panel rounded-xl ${panelPadding}`}>
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <span className="material-symbols-outlined text-red-400 text-[20px]">event_busy</span>
@@ -652,7 +746,7 @@ export default function DashboardPage() {
           )}
         </div>
 
-        <div className="glass-panel rounded-xl p-6 lg:p-8">
+        <div className={`glass-panel rounded-xl ${panelPadding}`}>
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <span className="material-symbols-outlined text-[#C9A84C] text-[20px]">balance</span>
@@ -705,20 +799,31 @@ export default function DashboardPage() {
         </div>
       </section>
 
-      <section className="glass-panel rounded-xl p-6 lg:p-8">
+      <section className={`glass-panel rounded-xl ${panelPadding}`}>
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 mb-4">
           <div className="flex items-center gap-2">
             <span className="material-symbols-outlined text-[#C9A84C] text-[20px]">receipt_long</span>
             <h2 className="font-headline text-xl text-on-surface">SIP Activity This Month</h2>
           </div>
-          <p className="text-on-surface-variant/50 text-xs font-mono uppercase tracking-widest">Source: SIP execution log + linked ledger entries</p>
+          <div className="flex items-center gap-2">
+            <p className="text-on-surface-variant/50 text-xs font-mono uppercase tracking-widest">Source: SIP execution log + linked ledger entries</p>
+            <button
+              type="button"
+              onClick={() => setShowSipActivity((value) => !value)}
+              className="px-3 py-1.5 rounded-md border border-white/10 bg-[#12121f] text-on-surface-variant hover:text-on-surface hover:border-white/20 text-[10px] font-mono uppercase tracking-widest transition-colors"
+            >
+              {showSipActivity ? "Collapse" : "Expand"}
+            </button>
+          </div>
         </div>
 
         <p className="mb-4 text-[10px] font-mono uppercase tracking-widest text-on-surface-variant/45">
           {sipActivitySummary.total} events this month • Paid cash outflow {fmtINR(sipActivitySummary.paidAmountPaise)} • Source: execution log
         </p>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+        {showSipActivity && (
+          <>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
           <div className="rounded-xl border border-white/5 bg-[#12121f] p-4">
             <p className="text-[10px] font-mono uppercase tracking-widest text-on-surface-variant/50 mb-2">Paid Cash Outflow</p>
             <p className="font-mono text-2xl font-bold text-on-surface">{fmtINR(sipActivitySummary.paidAmountPaise)}</p>
@@ -735,9 +840,9 @@ export default function DashboardPage() {
             <p className="text-[10px] font-mono uppercase tracking-widest text-on-surface-variant/50 mb-2">Snoozed Events</p>
             <p className="font-mono text-2xl font-bold text-[#C9A84C]">{sipActivitySummary.snoozed}</p>
           </div>
-        </div>
+            </div>
 
-        {sipActivityThisMonth.length > 0 ? (
+            {sipActivityThisMonth.length > 0 ? (
           <div className="space-y-3">
             {sipActivityThisMonth.map((entry) => {
               const statusClass = entry.status === "PAID"
@@ -769,15 +874,17 @@ export default function DashboardPage() {
               );
             })}
           </div>
-        ) : (
+            ) : (
           <div className="rounded-xl border border-white/5 bg-[#12121f] p-8 text-center">
             <p className="font-headline text-lg text-green-300">No SIP activity this month</p>
             <p className="mt-2 text-xs font-mono uppercase tracking-widest text-on-surface-variant/50">Paid, skipped, and snoozed events will appear here</p>
           </div>
+            )}
+          </>
         )}
       </section>
 
-      <section className="glass-panel rounded-xl p-6 lg:p-8">
+      <section className={`glass-panel rounded-xl ${panelPadding}`}>
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <span className="material-symbols-outlined text-[#C9A84C] text-[20px]">insights</span>
@@ -811,69 +918,11 @@ export default function DashboardPage() {
         </div>
       </section>
 
-      {/* ── 6 Metric Cards ── */}
-      <section className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
-        <DashMetric
-          label="Total Net Worth"
-          value={fmtINR(m.netWorthPaise)}
-          subtitle="All assets combined"
-          icon="account_balance"
-          gradient="bg-[#C9A84C]/20"
-          valueColor="text-white"
-        />
-        <DashMetric
-          label="Total Income (Month)"
-          value={fmtINR(m.monthlyIncomePaise)}
-          subtitle="Current month"
-          icon="trending_up"
-          valueColor="text-green-400"
-          iconColor="text-green-400"
-          gradient="bg-green-500/10"
-        />
-        <DashMetric
-          label="Total Expenses (Month)"
-          value={fmtINR(m.monthlyExpensePaise)}
-          subtitle="Current month"
-          icon="trending_down"
-          valueColor="text-red-400"
-          iconColor="text-red-400"
-          gradient="bg-red-500/10"
-        />
-        <DashMetric
-          label="Portfolio Value"
-          value={fmtINR(m.portfolioValuePaise)}
-          subtitle={fmtINRDecimal(m.portfolioValuePaise)}
-          icon="pie_chart"
-          valueColor="text-[#C9A84C]"
-          iconColor="text-[#C9A84C]"
-          trend={parseFloat(m.portfolioPnlPercent || 0)}
-          trendLabel={`${m.portfolioPnlPercent || 0}% P&L`}
-          gradient="bg-[#C9A84C]/10"
-        />
-        <DashMetric
-          label="Bank + Cash Balance"
-          value={fmtINR(m.bankCashPaise)}
-          subtitle="Across all accounts"
-          icon="savings"
-          valueColor="text-blue-300"
-          iconColor="text-blue-300"
-          gradient="bg-blue-500/10"
-        />
-        <DashMetric
-          label="Savings Rate"
-          value={`${m.savingsRatePercent || 0}%`}
-          subtitle="Income – Expenses"
-          icon="speed"
-          valueColor={parseFloat(m.savingsRatePercent || 0) > 30 ? "text-green-400" : "text-white"}
-          iconColor={parseFloat(m.savingsRatePercent || 0) > 30 ? "text-green-400" : "text-white"}
-        />
-      </section>
-
       {/* ── Main Widgets 2×2 Grid ── */}
-      <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <section className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
 
         {/* ─ Cash Flow — Last 6 Months ─ */}
-        <div className="glass-panel rounded-xl p-6 lg:p-8 relative">
+        <div className={`glass-panel rounded-xl relative ${panelPadding}`}>
           <div className="flex items-center justify-between mb-1">
             <div className="flex items-center gap-2">
               <span className="material-symbols-outlined text-tertiary text-[20px]">bar_chart</span>
@@ -908,7 +957,7 @@ export default function DashboardPage() {
         </div>
 
         {/* ─ Expense Breakdown ─ */}
-        <div className="glass-panel rounded-xl p-6 lg:p-8">
+        <div className={`glass-panel rounded-xl ${panelPadding}`}>
           <div className="flex items-center justify-between mb-1">
             <div className="flex items-center gap-2">
               <span className="material-symbols-outlined text-red-400/80 text-[20px]">pie_chart</span>
@@ -924,7 +973,7 @@ export default function DashboardPage() {
         </div>
 
         {/* ─ AI Insights ─ */}
-        <div className="glass-panel rounded-xl p-6 lg:p-8 relative overflow-hidden border border-tertiary/10">
+        <div className={`glass-panel rounded-xl relative overflow-hidden border border-tertiary/10 ${panelPadding}`}>
           {/* Subtle gold glow in bg */}
           <div className="absolute -top-12 -right-12 w-40 h-40 bg-tertiary/5 rounded-full blur-3xl pointer-events-none" />
 
@@ -962,7 +1011,7 @@ export default function DashboardPage() {
         </div>
 
         {/* ─ Income Breakdown ─ */}
-        <div className="glass-panel rounded-xl p-6 lg:p-8">
+        <div className={`glass-panel rounded-xl ${panelPadding}`}>
           <div className="flex items-center justify-between mb-1">
             <div className="flex items-center gap-2">
               <span className="material-symbols-outlined text-green-400/80 text-[20px]">donut_large</span>
