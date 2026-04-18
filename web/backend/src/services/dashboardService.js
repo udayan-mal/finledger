@@ -6,7 +6,7 @@ export const getDashboardSummary = async (userId) => {
   const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 6, 1);
 
   // Fetch all data in parallel
-  const [accounts, monthlyTransactions, allTransactionsLast6M, stockTrades, mutualFunds, recurringExpenses, sipPlans] = await Promise.all([
+  const [accounts, monthlyTransactions, allTransactionsLast6M, stockTrades, mutualFunds, recurringExpenses, sipPlans, sipExecutions] = await Promise.all([
     prisma.account.findMany({
       where: { userId },
       select: { id: true, type: true, balancePaise: true, name: true }
@@ -38,6 +38,14 @@ export const getDashboardSummary = async (userId) => {
       orderBy: { nextDue: "asc" },
       take: 8
     }),
+    prisma.sipExecution.findMany({
+      where: { userId, executedAt: { gte: currentMonthStart } },
+      include: {
+        sipPlan: { select: { fundName: true, platform: true, frequency: true, amountPaise: true } }
+      },
+      orderBy: { executedAt: "desc" },
+      take: 50
+    })
   ]);
 
   // Calculate account balances by type
@@ -174,6 +182,30 @@ export const getDashboardSummary = async (userId) => {
     allTransactionsLast6M.filter((tx) => tx.type === "INVESTMENT")
   );
 
+  const sipActivityThisMonth = sipExecutions.map((execution) => ({
+    id: execution.id,
+    status: execution.status,
+    amountPaise: execution.amountPaise,
+    executedAt: execution.executedAt.toISOString(),
+    note: execution.note,
+    fundName: execution.sipPlan?.fundName || "SIP",
+    platform: execution.sipPlan?.platform || "",
+    frequency: execution.sipPlan?.frequency || "",
+    source: execution.transactionId ? "Ledger entry created" : "Execution log"
+  }));
+
+  const sipActivitySummary = sipExecutions.reduce(
+    (summary, execution) => {
+      summary.total += 1;
+      if (execution.status === "PAID") summary.paid += 1;
+      if (execution.status === "SKIPPED") summary.skipped += 1;
+      if (execution.status === "SNOOZED") summary.snoozed += 1;
+      summary.amountPaise += execution.amountPaise || 0;
+      return summary;
+    },
+    { total: 0, paid: 0, skipped: 0, snoozed: 0, amountPaise: 0 }
+  );
+
   return {
     metrics: {
       netWorthPaise,
@@ -199,7 +231,9 @@ export const getDashboardSummary = async (userId) => {
     sipDueCount: sipReminders.filter((item) => item.isDueToday || item.isOverdue).length,
     sipOverdueCount: sipReminders.filter((item) => item.isOverdue).length,
     cashRequiredThisMonthPaise,
-    monthlyContributionTrend
+    monthlyContributionTrend,
+    sipActivityThisMonth,
+    sipActivitySummary
   };
 };
 

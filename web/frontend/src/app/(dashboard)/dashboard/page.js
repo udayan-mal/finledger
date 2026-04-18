@@ -28,6 +28,16 @@ const fmtShortDate = (dateString) => {
   });
 };
 
+const fmtShortDateTime = (dateString) => {
+  if (!dateString) return "";
+  return new Date(dateString).toLocaleString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+};
+
 /* ──────────────────────────────────────────────
    Metric Card — designed for the 6-card grid
    ────────────────────────────────────────────── */
@@ -256,6 +266,8 @@ export default function DashboardPage() {
   const sipOverdueCount = data?.sipOverdueCount || 0;
   const sipUpcomingCount = data?.sipUpcomingCount || 0;
   const cashRequiredThisMonthPaise = data?.cashRequiredThisMonthPaise || 0;
+  const sipActivityThisMonth = data?.sipActivityThisMonth || [];
+  const sipActivitySummary = data?.sipActivitySummary || { total: 0, paid: 0, skipped: 0, snoozed: 0, amountPaise: 0 };
   const peakContribution = Math.max(0, ...monthlyContributionTrend.map((item) => item.amountPaise || 0));
 
   const totalMonthlyExpense = expenseBreakdown.reduce((s, e) => s + (e.amount || 0), 0);
@@ -438,7 +450,7 @@ export default function DashboardPage() {
         <DashMetric
           label="SIP Due / Overdue"
           value={`${sipDueCount}`}
-          subtitle={`${sipOverdueCount} overdue`}
+          subtitle={`${sipOverdueCount} overdue • Source: active SIP plans`}
           icon="notifications_active"
           valueColor={sipDueCount > 0 ? "text-yellow-300" : "text-green-400"}
           iconColor={sipDueCount > 0 ? "text-yellow-300" : "text-green-400"}
@@ -447,7 +459,7 @@ export default function DashboardPage() {
         <DashMetric
           label="Upcoming SIP (7d)"
           value={`${sipUpcomingCount}`}
-          subtitle="Due in next 7 days"
+          subtitle="Due in next 7 days • Source: active SIP plans"
           icon="event_upcoming"
           valueColor="text-blue-300"
           iconColor="text-blue-300"
@@ -456,7 +468,7 @@ export default function DashboardPage() {
         <DashMetric
           label="Cash Required (Month)"
           value={fmtINR(cashRequiredThisMonthPaise)}
-          subtitle="All active SIP plans"
+          subtitle="Active plan dues this month • Source: SIP plans"
           icon="account_balance_wallet"
           valueColor="text-[#C9A84C]"
           iconColor="text-[#C9A84C]"
@@ -465,7 +477,7 @@ export default function DashboardPage() {
         <DashMetric
           label="Realized P&L"
           value={fmtINR(m.realizedPnlPaise || 0)}
-          subtitle="Sell trades only"
+          subtitle="Sell trades only • Source: stock ledger"
           icon="monitoring"
           valueColor={(m.realizedPnlPaise || 0) >= 0 ? "text-green-400" : "text-red-400"}
           iconColor={(m.realizedPnlPaise || 0) >= 0 ? "text-green-400" : "text-red-400"}
@@ -554,10 +566,8 @@ export default function DashboardPage() {
             </div>
             <div className="rounded-xl border border-white/5 bg-[#12121f] p-5">
               <p className="text-[10px] font-mono uppercase tracking-widest text-on-surface-variant/50 mb-2">Unrealized P&L</p>
-              <p className="font-mono text-3xl font-bold text-blue-300">
-                {fmtINR(m.unrealizedPnlPaise || 0)}
-              </p>
-              <p className="mt-2 text-xs text-on-surface-variant/50 font-mono">Live pricing integration pending</p>
+              <p className="font-mono text-3xl font-bold text-blue-300">Pending</p>
+              <p className="mt-2 text-xs text-on-surface-variant/50 font-mono">Source: live market prices not connected yet</p>
             </div>
           </div>
 
@@ -580,6 +590,78 @@ export default function DashboardPage() {
       </section>
 
       <section className="glass-panel rounded-xl p-6 lg:p-8">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 mb-4">
+          <div className="flex items-center gap-2">
+            <span className="material-symbols-outlined text-[#C9A84C] text-[20px]">receipt_long</span>
+            <h2 className="font-headline text-xl text-on-surface">SIP Activity This Month</h2>
+          </div>
+          <p className="text-on-surface-variant/50 text-xs font-mono uppercase tracking-widest">Source: SIP execution log + linked ledger entries</p>
+        </div>
+
+        <p className="mb-4 text-[10px] font-mono uppercase tracking-widest text-on-surface-variant/45">
+          {sipActivitySummary.total} events this month • Total activity amount {fmtINR(sipActivitySummary.amountPaise)}
+        </p>
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+          <div className="rounded-xl border border-white/5 bg-[#12121f] p-4">
+            <p className="text-[10px] font-mono uppercase tracking-widest text-on-surface-variant/50 mb-2">Activity Amount</p>
+            <p className="font-mono text-2xl font-bold text-on-surface">{fmtINR(sipActivitySummary.amountPaise)}</p>
+          </div>
+          <div className="rounded-xl border border-white/5 bg-[#12121f] p-4">
+            <p className="text-[10px] font-mono uppercase tracking-widest text-on-surface-variant/50 mb-2">Paid</p>
+            <p className="font-mono text-2xl font-bold text-green-400">{sipActivitySummary.paid}</p>
+          </div>
+          <div className="rounded-xl border border-white/5 bg-[#12121f] p-4">
+            <p className="text-[10px] font-mono uppercase tracking-widest text-on-surface-variant/50 mb-2">Skipped</p>
+            <p className="font-mono text-2xl font-bold text-red-400">{sipActivitySummary.skipped}</p>
+          </div>
+          <div className="rounded-xl border border-white/5 bg-[#12121f] p-4">
+            <p className="text-[10px] font-mono uppercase tracking-widest text-on-surface-variant/50 mb-2">Snoozed</p>
+            <p className="font-mono text-2xl font-bold text-[#C9A84C]">{sipActivitySummary.snoozed}</p>
+          </div>
+        </div>
+
+        {sipActivityThisMonth.length > 0 ? (
+          <div className="space-y-3">
+            {sipActivityThisMonth.map((entry) => {
+              const statusClass = entry.status === "PAID"
+                ? "bg-green-500/10 text-green-300 border-green-500/20"
+                : entry.status === "SKIPPED"
+                  ? "bg-red-500/10 text-red-300 border-red-500/20"
+                  : "bg-[#C9A84C]/10 text-[#C9A84C] border-[#C9A84C]/20";
+
+              return (
+                <div key={entry.id} className="rounded-xl border border-white/5 bg-[#12121f] p-4 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+                  <div>
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                      <span className="font-mono text-sm font-bold text-on-surface">{entry.fundName}</span>
+                      <span className={`font-mono text-[9px] uppercase tracking-widest px-2 py-0.5 rounded-sm border ${statusClass}`}>
+                        {entry.status}
+                      </span>
+                    </div>
+                    <p className="text-xs text-on-surface-variant/60 font-mono uppercase tracking-widest">
+                      {fmtINR(entry.amountPaise)} • {entry.platform || "SIP"} • {fmtShortDateTime(entry.executedAt)}
+                    </p>
+                    <p className="text-[10px] text-on-surface-variant/45 font-mono uppercase tracking-widest mt-1">
+                      Source: {entry.source}
+                    </p>
+                  </div>
+                  <div className="text-xs font-mono text-on-surface-variant/60 max-w-[280px] lg:text-right">
+                    {entry.note || "No note"}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="rounded-xl border border-white/5 bg-[#12121f] p-8 text-center">
+            <p className="font-headline text-lg text-green-300">No SIP activity this month</p>
+            <p className="mt-2 text-xs font-mono uppercase tracking-widest text-on-surface-variant/50">Paid, skipped, and snoozed events will appear here</p>
+          </div>
+        )}
+      </section>
+
+      <section className="glass-panel rounded-xl p-6 lg:p-8">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <span className="material-symbols-outlined text-[#C9A84C] text-[20px]">insights</span>
@@ -587,6 +669,10 @@ export default function DashboardPage() {
           </div>
           <p className="text-on-surface-variant/50 text-xs font-mono uppercase tracking-widest">Last 6 months</p>
         </div>
+
+        <p className="mb-4 text-[10px] font-mono uppercase tracking-widest text-on-surface-variant/45">
+          Source: posted investment transactions only
+        </p>
 
         <div className="grid grid-cols-6 gap-3 items-end min-h-[120px]">
           {monthlyContributionTrend.map((item) => {
