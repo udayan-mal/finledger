@@ -21,7 +21,7 @@ export const getDashboardSummary = async (userId) => {
     }),
     prisma.stockTrade.findMany({
       where: { userId },
-      select: { id: true, symbol: true, qty: true, pricePaise: true, totalChargesPaise: true, tradeType: true }
+      select: { id: true, symbol: true, qty: true, pricePaise: true, totalChargesPaise: true, tradeType: true, date: true }
     }),
     prisma.mutualFund.findMany({
       where: { userId },
@@ -89,12 +89,14 @@ export const getDashboardSummary = async (userId) => {
   // Calculate net worth
   const netWorthPaise = bankCashPaise + investmentAccountPaise + portfolioValuePaise + stockInvestedPaise;
 
-  // Portfolio P&L (would need real current NAV for accuracy)
-  const portfolioPnlPercent = 0; // Needs live data
+  const estimatedUnrealized = calculateEstimatedUnrealizedStockPnl(stockTrades);
+  const portfolioPnlPercent = estimatedUnrealized.openCostPaise > 0
+    ? (estimatedUnrealized.unrealizedPnlPaise / estimatedUnrealized.openCostPaise) * 100
+    : 0;
   const realizedPnlPaise = stockTrades
     .filter((trade) => trade.tradeType === "SELL")
     .reduce((sum, trade) => sum + (trade.netPnlPaise || 0), 0);
-  const unrealizedPnlPaise = 0; // Requires live market pricing integration.
+  const unrealizedPnlPaise = estimatedUnrealized.unrealizedPnlPaise;
 
   // Get last 6 months cash flow data (grouped by month)
   const cashFlow = calculateCashFlowByMonth(allTransactionsLast6M);
@@ -266,6 +268,7 @@ export const getDashboardSummary = async (userId) => {
       portfolioPnlPercent: portfolioPnlPercent.toFixed(1),
       realizedPnlPaise,
       unrealizedPnlPaise,
+      unrealizedPnlEstimated: estimatedUnrealized.hasPricedPosition,
       totalIncomeCount,
       totalExpenseCount
     },
@@ -373,4 +376,57 @@ function buildMonthlyContributionTrend(transactions) {
     amountPaise: totalByMonth.get(month.key) || 0,
     amount: (totalByMonth.get(month.key) || 0) / 100
   }));
+}
+
+function calculateEstimatedUnrealizedStockPnl(stockTrades) {
+  const tradesBySymbol = new Map();
+
+  stockTrades.forEach((trade) => {
+    const symbol = (trade.symbol || "").toUpperCase();
+    if (!symbol) return;
+    if (!tradesBySymbol.has(symbol)) tradesBySymbol.set(symbol, []);
+    tradesBySymbol.get(symbol).push(trade);
+  });
+
+  let totalUnrealizedPnlPaise = 0;
+  let totalOpenCostPaise = 0;
+  let hasPricedPosition = false;
+
+  tradesBySymbol.forEach((trades) => {
+    const ordered = [...trades].sort((a, b) => new Date(a.date) - new Date(b.date));
+    let openQty = 0;
+    let openCostPaise = 0;
+    let latestPricePaise = 0;
+
+    ordered.forEach((trade) => {
+      const qty = Number(trade.qty || 0);
+      const pricePaise = Number(trade.pricePaise || 0);
+      const chargesPaise = Number(trade.totalChargesPaise || 0);
+
+      if (pricePaise > 0) latestPricePaise = pricePaise;
+
+      if (trade.tradeType === "BUY") {
+        openQty += qty;
+        openCostPaise += (qty * pricePaise) + chargesPaise;
+      } else if (trade.tradeType === "SELL" && openQty > 0) {
+        const soldQty = Math.min(qty, openQty);
+        const avgCostPerUnit = openQty > 0 ? (openCostPaise / openQty) : 0;
+        openQty -= soldQty;
+        openCostPaise -= avgCostPerUnit * soldQty;
+      }
+    });
+
+    if (openQty > 0 && latestPricePaise > 0) {
+      const marketValuePaise = openQty * latestPricePaise;
+      totalUnrealizedPnlPaise += Math.round(marketValuePaise - openCostPaise);
+      totalOpenCostPaise += Math.round(openCostPaise);
+      hasPricedPosition = true;
+    }
+  });
+
+  return {
+    unrealizedPnlPaise: totalUnrealizedPnlPaise,
+    openCostPaise: totalOpenCostPaise,
+    hasPricedPosition
+  };
 }

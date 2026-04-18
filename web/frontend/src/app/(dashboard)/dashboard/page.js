@@ -671,8 +671,19 @@ export default function DashboardPage() {
             </div>
             <div className="rounded-xl border border-white/5 bg-[#12121f] p-5">
               <p className="text-[10px] font-mono uppercase tracking-widest text-on-surface-variant/50 mb-2">Unrealized P&L</p>
-              <p className="font-mono text-3xl font-bold text-blue-300">Pending</p>
-              <p className="mt-2 text-xs text-on-surface-variant/50 font-mono">Source: live market prices not connected yet</p>
+              {m.unrealizedPnlEstimated ? (
+                <>
+                  <p className={`font-mono text-3xl font-bold ${(m.unrealizedPnlPaise || 0) >= 0 ? "text-green-300" : "text-red-300"}`}>
+                    {fmtINR(m.unrealizedPnlPaise || 0)}
+                  </p>
+                  <p className="mt-2 text-xs text-on-surface-variant/50 font-mono">Estimated from latest recorded stock prices</p>
+                </>
+              ) : (
+                <>
+                  <p className="font-mono text-3xl font-bold text-blue-300">Pending</p>
+                  <p className="mt-2 text-xs text-on-surface-variant/50 font-mono">Source: live market prices not connected yet</p>
+                </>
+              )}
             </div>
           </div>
 
