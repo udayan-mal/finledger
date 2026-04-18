@@ -175,6 +175,7 @@ export default function DashboardPage() {
   const [error, setError] = useState(null);
   const [accounts, setAccounts] = useState([]);
   const [showSipForm, setShowSipForm] = useState(false);
+  const [showReconciliationDetails, setShowReconciliationDetails] = useState(false);
   const [sipForm, setSipForm] = useState({
     fundName: "",
     amountRupees: "100",
@@ -268,7 +269,18 @@ export default function DashboardPage() {
   const cashRequiredThisMonthPaise = data?.cashRequiredThisMonthPaise || 0;
   const sipActivityThisMonth = data?.sipActivityThisMonth || [];
   const sipActivitySummary = data?.sipActivitySummary || { total: 0, paid: 0, skipped: 0, snoozed: 0, amountPaise: 0, paidAmountPaise: 0 };
+  const reconciliationDetails = data?.reconciliationDetails || {
+    matchedCount: 0,
+    ledgerOnlyCount: 0,
+    executionOnlyCount: 0,
+    ledgerOnlyTransactions: [],
+    executionOnlyPaid: []
+  };
   const peakContribution = Math.max(0, ...monthlyContributionTrend.map((item) => item.amountPaise || 0));
+  const monthlyInvestmentLedgerPaise = m.monthlyInvestmentPaise || 0;
+  const paidSipOutflowPaise = sipActivitySummary.paidAmountPaise || 0;
+  const reconciliationDiffPaise = monthlyInvestmentLedgerPaise - paidSipOutflowPaise;
+  const reconciliationMatched = reconciliationDiffPaise === 0;
 
   const totalMonthlyExpense = expenseBreakdown.reduce((s, e) => s + (e.amount || 0), 0);
   const totalMonthlyIncome = incomeBreakdown.reduce((s, e) => s + (e.amount || 0), 0);
@@ -483,6 +495,99 @@ export default function DashboardPage() {
           iconColor={(m.realizedPnlPaise || 0) >= 0 ? "text-green-400" : "text-red-400"}
           gradient={(m.realizedPnlPaise || 0) >= 0 ? "bg-green-500/10" : "bg-red-500/10"}
         />
+      </section>
+
+      <section className="glass-panel rounded-xl p-5 lg:p-6 border border-white/5">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 mb-4">
+          <div className="flex items-center gap-2">
+            <span className="material-symbols-outlined text-[#C9A84C] text-[18px]">rule</span>
+            <h3 className="font-headline text-lg text-on-surface">SIP Reconciliation (This Month)</h3>
+          </div>
+          <div className="flex items-center gap-3">
+            <p className={`text-xs font-mono uppercase tracking-widest ${reconciliationMatched ? "text-green-300" : "text-yellow-300"}`}>
+              {reconciliationMatched ? "Matched" : "Needs review"}
+            </p>
+            <button
+              type="button"
+              onClick={() => setShowReconciliationDetails((value) => !value)}
+              className="px-3 py-1.5 rounded-md border border-white/10 bg-[#12121f] text-on-surface-variant hover:text-on-surface hover:border-white/20 text-[10px] font-mono uppercase tracking-widest transition-colors"
+            >
+              {showReconciliationDetails ? "Hide Details" : "View Details"}
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className="rounded-xl border border-white/5 bg-[#12121f] p-4">
+            <p className="text-[10px] font-mono uppercase tracking-widest text-on-surface-variant/50 mb-2">Ledger Investments</p>
+            <p className="font-mono text-2xl font-bold text-on-surface">{fmtINR(monthlyInvestmentLedgerPaise)}</p>
+            <p className="mt-1 text-[10px] font-mono uppercase tracking-widest text-on-surface-variant/45">Source: posted investment transactions</p>
+          </div>
+          <div className="rounded-xl border border-white/5 bg-[#12121f] p-4">
+            <p className="text-[10px] font-mono uppercase tracking-widest text-on-surface-variant/50 mb-2">Paid SIP Outflow</p>
+            <p className="font-mono text-2xl font-bold text-green-300">{fmtINR(paidSipOutflowPaise)}</p>
+            <p className="mt-1 text-[10px] font-mono uppercase tracking-widest text-on-surface-variant/45">Source: paid SIP execution events</p>
+          </div>
+          <div className="rounded-xl border border-white/5 bg-[#12121f] p-4">
+            <p className="text-[10px] font-mono uppercase tracking-widest text-on-surface-variant/50 mb-2">Difference</p>
+            <p className={`font-mono text-2xl font-bold ${reconciliationMatched ? "text-green-300" : "text-yellow-300"}`}>
+              {fmtINR(Math.abs(reconciliationDiffPaise))}
+            </p>
+            <p className="mt-1 text-[10px] font-mono uppercase tracking-widest text-on-surface-variant/45">
+              {reconciliationMatched ? "No gap detected" : "Gap between ledger and execution log"}
+            </p>
+          </div>
+        </div>
+
+        {showReconciliationDetails && (
+          <div className="mt-4 grid grid-cols-1 xl:grid-cols-2 gap-4">
+            <div className="rounded-xl border border-white/5 bg-[#12121f] p-4">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-[10px] font-mono uppercase tracking-widest text-on-surface-variant/60">Ledger-only transactions</p>
+                <span className="text-xs font-mono text-yellow-300">{reconciliationDetails.ledgerOnlyCount}</span>
+              </div>
+
+              {reconciliationDetails.ledgerOnlyTransactions.length > 0 ? (
+                <div className="space-y-2 max-h-[240px] overflow-y-auto no-scrollbar pr-1">
+                  {reconciliationDetails.ledgerOnlyTransactions.map((entry) => (
+                    <div key={entry.id} className="rounded-lg border border-white/5 p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-mono text-sm text-on-surface">{entry.description}</span>
+                        <span className="font-mono text-sm text-yellow-300">{fmtINR(entry.amountPaise)}</span>
+                      </div>
+                      <p className="text-[10px] mt-1 font-mono uppercase tracking-widest text-on-surface-variant/50">{fmtShortDate(entry.date)} • Ledger only</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs font-mono uppercase tracking-widest text-green-300">No ledger-only rows</p>
+              )}
+            </div>
+
+            <div className="rounded-xl border border-white/5 bg-[#12121f] p-4">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-[10px] font-mono uppercase tracking-widest text-on-surface-variant/60">Execution-only paid rows</p>
+                <span className="text-xs font-mono text-yellow-300">{reconciliationDetails.executionOnlyCount}</span>
+              </div>
+
+              {reconciliationDetails.executionOnlyPaid.length > 0 ? (
+                <div className="space-y-2 max-h-[240px] overflow-y-auto no-scrollbar pr-1">
+                  {reconciliationDetails.executionOnlyPaid.map((entry) => (
+                    <div key={entry.id} className="rounded-lg border border-white/5 p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-mono text-sm text-on-surface">{entry.fundName}</span>
+                        <span className="font-mono text-sm text-yellow-300">{fmtINR(entry.amountPaise)}</span>
+                      </div>
+                      <p className="text-[10px] mt-1 font-mono uppercase tracking-widest text-on-surface-variant/50">{fmtShortDate(entry.executedAt)} • Execution only</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs font-mono uppercase tracking-widest text-green-300">No execution-only rows</p>
+              )}
+            </div>
+          </div>
+        )}
       </section>
 
       <section className="grid grid-cols-1 xl:grid-cols-2 gap-6">

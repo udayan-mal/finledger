@@ -66,6 +66,10 @@ export const getDashboardSummary = async (userId) => {
     .filter(tx => tx.type === "EXPENSE" || tx.type === "INVESTMENT")
     .reduce((sum, tx) => sum + tx.amountPaise, 0);
 
+  const monthlyInvestmentPaise = monthlyTransactions
+    .filter(tx => tx.type === "INVESTMENT")
+    .reduce((sum, tx) => sum + tx.amountPaise, 0);
+
   const savingsRatePercent = monthlyIncomePaise > 0
     ? ((monthlyIncomePaise - monthlyExpensePaise) / monthlyIncomePaise) * 100
     : 0;
@@ -207,11 +211,55 @@ export const getDashboardSummary = async (userId) => {
     { total: 0, paid: 0, skipped: 0, snoozed: 0, amountPaise: 0, paidAmountPaise: 0 }
   );
 
+  const investmentTransactionsThisMonth = monthlyTransactions
+    .filter((tx) => tx.type === "INVESTMENT")
+    .map((tx) => ({
+      id: tx.id,
+      amountPaise: tx.amountPaise,
+      date: tx.date.toISOString(),
+      description: tx.description || "Investment",
+      note: tx.note || null
+    }));
+
+  const paidExecutionsThisMonth = sipExecutions
+    .filter((execution) => execution.status === "PAID")
+    .map((execution) => ({
+      id: execution.id,
+      amountPaise: execution.amountPaise,
+      executedAt: execution.executedAt.toISOString(),
+      transactionId: execution.transactionId,
+      fundName: execution.sipPlan?.fundName || "SIP",
+      note: execution.note || null
+    }));
+
+  const linkedPaidTxIds = new Set(
+    paidExecutionsThisMonth
+      .filter((execution) => execution.transactionId)
+      .map((execution) => execution.transactionId)
+  );
+
+  const investmentTxIds = new Set(investmentTransactionsThisMonth.map((tx) => tx.id));
+
+  const ledgerOnlyTransactions = investmentTransactionsThisMonth.filter((tx) => !linkedPaidTxIds.has(tx.id));
+
+  const executionOnlyPaid = paidExecutionsThisMonth.filter(
+    (execution) => !execution.transactionId || !investmentTxIds.has(execution.transactionId)
+  );
+
+  const reconciliationDetails = {
+    matchedCount: paidExecutionsThisMonth.length - executionOnlyPaid.length,
+    ledgerOnlyCount: ledgerOnlyTransactions.length,
+    executionOnlyCount: executionOnlyPaid.length,
+    ledgerOnlyTransactions,
+    executionOnlyPaid
+  };
+
   return {
     metrics: {
       netWorthPaise,
       monthlyIncomePaise,
       monthlyExpensePaise,
+      monthlyInvestmentPaise,
       portfolioValuePaise,
       bankCashPaise,
       savingsRatePercent: savingsRatePercent.toFixed(1),
@@ -234,7 +282,8 @@ export const getDashboardSummary = async (userId) => {
     cashRequiredThisMonthPaise,
     monthlyContributionTrend,
     sipActivityThisMonth,
-    sipActivitySummary
+    sipActivitySummary,
+    reconciliationDetails
   };
 };
 
