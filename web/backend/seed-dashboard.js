@@ -150,7 +150,7 @@ async function seedDashboardData() {
         categoryId: createdCategories.find(c => c.name === "Salary")?.id,
         note: "Monthly salary",
         date,
-        tags: ["salary", "regular"]
+        tags: JSON.stringify(["salary", "regular"])
       });
 
       // Add 1-2 freelance payments
@@ -165,7 +165,7 @@ async function seedDashboardData() {
           categoryId: createdCategories.find(c => c.name === "Freelance")?.id,
           note: "Freelance project",
           date: freelanceDate,
-          tags: ["freelance"]
+          tags: JSON.stringify(["freelance"])
         });
       }
     }
@@ -190,7 +190,7 @@ async function seedDashboardData() {
           categoryId: createdCategories.find(c => c.name === category)?.id,
           note: `${category} expense`,
           date,
-          tags: [category.toLowerCase()]
+          tags: JSON.stringify([category.toLowerCase()])
         });
       }
     }
@@ -206,26 +206,27 @@ async function seedDashboardData() {
         {
           userId: user.id,
           fundName: "Vanguard Bluechip Direct Growth",
-          units: 5000000, // 50 units (stored as integers)
+          units: 50,
           navAtBuyPaise: 2410500, // ₹2,410.50
-          investedAmountPaise: 1205000000, // ₹12,05,000
-          type: "LUMPSUM"
+          type: "LUMPSUM",
+          date: new Date()
         },
         {
           userId: user.id,
           fundName: "Mirae Asset Emerging Bluechip Fund",
-          units: 3000000, // 30 units
+          units: 30,
           navAtBuyPaise: 3350000, // ₹3,350.00
-          investedAmountPaise: 1005000000, // ₹10,05,000
-          type: "LUMPSUM"
+          type: "LUMPSUM",
+          date: new Date()
         },
         {
           userId: user.id,
           fundName: "HDFC Top 100 Fund Direct Growth",
-          units: 2500000, // 25 units
+          units: 25,
           navAtBuyPaise: 1695000, // ₹1,695.00
-          investedAmountPaise: 423750000, // ₹4,23,750
-          type: "SIP"
+          type: "SIP",
+          sipAmountPaise: 42375000,
+          date: new Date()
         }
       ],
       skipDuplicates: true

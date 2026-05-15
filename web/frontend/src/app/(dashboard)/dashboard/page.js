@@ -38,6 +38,83 @@ const fmtShortDateTime = (dateString) => {
   });
 };
 
+const DASHBOARD_PERIODS = [
+  {
+    label: "This Month",
+    key: "thisMonth",
+    description: "Current month to date",
+    getRange: () => {
+      const now = new Date();
+      return { start: new Date(now.getFullYear(), now.getMonth(), 1), end: now };
+    }
+  },
+  {
+    label: "Last Month",
+    key: "lastMonth",
+    description: "Previous calendar month",
+    getRange: () => {
+      const now = new Date();
+      return {
+        start: new Date(now.getFullYear(), now.getMonth() - 1, 1),
+        end: new Date(now.getFullYear(), now.getMonth(), 1)
+      };
+    }
+  },
+  {
+    label: "Last 30 Days",
+    key: "last30Days",
+    description: "Rolling 30-day window",
+    getRange: () => {
+      const now = new Date();
+      return { start: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000), end: now };
+    }
+  },
+  {
+    label: "Last 3 Months",
+    key: "last3Months",
+    description: "Previous three calendar months",
+    getRange: () => {
+      const now = new Date();
+      return {
+        start: new Date(now.getFullYear(), now.getMonth() - 3, 1),
+        end: new Date(now.getFullYear(), now.getMonth(), 1)
+      };
+    }
+  },
+  {
+    label: "Last Year",
+    key: "lastYear",
+    description: "Previous calendar year",
+    getRange: () => {
+      const now = new Date();
+      return {
+        start: new Date(now.getFullYear() - 1, 0, 1),
+        end: new Date(now.getFullYear(), 0, 1)
+      };
+    }
+  },
+  {
+    label: "This Year",
+    key: "thisYear",
+    description: "Current year to date",
+    getRange: () => {
+      const now = new Date();
+      return { start: new Date(now.getFullYear(), 0, 1), end: now };
+    }
+  },
+  {
+    label: "All Time",
+    key: "allTime",
+    description: "Everything stored in FinLedger",
+    getRange: () => {
+      const now = new Date();
+      return { start: null, end: now };
+    }
+  }
+];
+
+const DEFAULT_PERIOD_KEY = "thisMonth";
+
 /* ──────────────────────────────────────────────
    Metric Card — designed for the 6-card grid
    ────────────────────────────────────────────── */
@@ -110,7 +187,7 @@ const getColorForCategory = (name, index, type = "expense") => {
   }
 };
 
-function CategoryDonut({ breakdown, totalAmount, type = "expense", emptyMessage = "Add transactions" }) {
+function CategoryDonut({ breakdown, totalAmount, type = "expense", emptyMessage = "Add transactions", periodLabel = "This Month" }) {
   if (!breakdown || breakdown.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-3">
@@ -146,7 +223,7 @@ function CategoryDonut({ breakdown, totalAmount, type = "expense", emptyMessage 
         />
         <div className="absolute inset-0 flex flex-col items-center justify-center">
           <span className={`font-mono text-sm font-bold ${type === "income" ? "text-green-400" : "text-on-surface"}`}>{fmtINR(totalAmount * 100)}</span>
-          <span className="font-mono text-[8px] text-on-surface-variant/50 uppercase">This Month</span>
+          <span className="font-mono text-[8px] text-on-surface-variant/50 uppercase text-center px-2">{periodLabel}</span>
         </div>
       </div>
 
@@ -174,6 +251,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [accounts, setAccounts] = useState([]);
+  const [selectedPeriodKey, setSelectedPeriodKey] = useState(DEFAULT_PERIOD_KEY);
   const [showSipForm, setShowSipForm] = useState(false);
   const [showReconciliationDetails, setShowReconciliationDetails] = useState(false);
   const [showSipActivity, setShowSipActivity] = useState(false);
@@ -189,10 +267,13 @@ export default function DashboardPage() {
   });
   const [sipActionBusy, setSipActionBusy] = useState(null);
 
-  const fetchDashboard = useCallback(async () => {
+  const fetchDashboard = useCallback(async (periodKey = DEFAULT_PERIOD_KEY) => {
     try {
       setLoading(true);
-      const res = await apiGetCached("/dashboard/summary", { ttlMs: 20000 });
+      const res = await apiGetCached("/dashboard/summary", {
+        ttlMs: 20000,
+        params: { range: periodKey }
+      });
       setData(res.data.data);
       setError(null);
     } catch (err) {
@@ -219,9 +300,9 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
-    fetchDashboard();
+    fetchDashboard(selectedPeriodKey);
     fetchAccounts();
-  }, [fetchDashboard, fetchAccounts]);
+  }, [fetchDashboard, fetchAccounts, selectedPeriodKey]);
 
   const sipReminders = data?.sipReminders || [];
   const dueSipReminders = sipReminders.filter((item) => item.isDueToday || item.isOverdue);
@@ -242,7 +323,7 @@ export default function DashboardPage() {
       });
       setShowSipForm(false);
       setSipForm((current) => ({ ...current, fundName: "", amountRupees: "100" }));
-      await fetchDashboard();
+      await fetchDashboard(selectedPeriodKey);
     } catch (err) {
       alert(err.response?.data?.error || "Failed to create SIP plan.");
     }
@@ -252,7 +333,7 @@ export default function DashboardPage() {
     try {
       setSipActionBusy(`${planId}:${action}`);
       await api.post(`/sip-plans/${planId}/${action}`, body);
-      await fetchDashboard();
+      await fetchDashboard(selectedPeriodKey);
     } catch (err) {
       alert(err.response?.data?.error || `Failed to ${action} SIP.`);
     } finally {
@@ -286,6 +367,9 @@ export default function DashboardPage() {
 
   const totalMonthlyExpense = expenseBreakdown.reduce((s, e) => s + (e.amount || 0), 0);
   const totalMonthlyIncome = incomeBreakdown.reduce((s, e) => s + (e.amount || 0), 0);
+  const selectedPeriod = data?.selectedPeriod || DASHBOARD_PERIODS.find((period) => period.key === selectedPeriodKey) || DASHBOARD_PERIODS[0];
+  const selectedPeriodLabel = selectedPeriod?.label || "This Month";
+  const selectedPeriodDescription = DASHBOARD_PERIODS.find((period) => period.key === selectedPeriodKey)?.description || "Current month to date";
 
   const rootSpacing = compactMode ? "space-y-6 lg:space-y-8" : "space-y-10";
   const panelPadding = compactMode ? "p-4 lg:p-5" : "p-6 lg:p-8";
@@ -300,27 +384,44 @@ export default function DashboardPage() {
           <h1 className="font-headline text-3xl text-on-surface">Dashboard</h1>
           <p className="text-on-surface-variant/60 text-sm mt-1">Your complete financial overview at a glance</p>
         </div>
-        <button
-          type="button"
-          onClick={() => setCompactMode((value) => !value)}
-          className="self-start px-3 py-1.5 rounded-md border border-white/10 bg-[#12121f] text-on-surface-variant hover:text-on-surface hover:border-white/20 text-[10px] font-mono uppercase tracking-widest transition-colors"
-        >
-          {compactMode ? "Expanded View" : "Compact View"}
-        </button>
+        <div className="flex flex-col items-start gap-2 lg:items-end">
+          <label className="text-[10px] font-mono uppercase tracking-widest text-on-surface-variant/50">Time Range</label>
+          <select
+            value={selectedPeriodKey}
+            onChange={(event) => setSelectedPeriodKey(event.target.value)}
+            className="w-full lg:w-56 rounded-lg border border-white/10 bg-[#12121f] px-3 py-2 text-sm text-on-surface outline-none transition-colors hover:border-white/20 focus:border-[#C9A84C]"
+          >
+            {DASHBOARD_PERIODS.map((period) => (
+              <option key={period.key} value={period.key}>
+                {period.label}
+              </option>
+            ))}
+          </select>
+          <p className="max-w-xs text-right text-[10px] font-mono uppercase tracking-widest text-on-surface-variant/40">
+            {selectedPeriodDescription} • Transaction-based cards and charts update to this range.
+          </p>
+          <button
+            type="button"
+            onClick={() => setCompactMode((value) => !value)}
+            className="self-start lg:self-end px-3 py-1.5 rounded-md border border-white/10 bg-[#12121f] text-on-surface-variant hover:text-on-surface hover:border-white/20 text-[10px] font-mono uppercase tracking-widest transition-colors"
+          >
+            {compactMode ? "Expanded View" : "Compact View"}
+          </button>
+        </div>
       </div>
 
       <section className="sticky top-2 z-30 glass-panel rounded-xl border border-white/10 bg-[#111125]/95 backdrop-blur-md p-3 lg:p-4">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 lg:gap-3">
           <div className="rounded-lg border border-white/5 bg-[#12121f] p-3">
-            <p className="text-[9px] font-mono uppercase tracking-widest text-on-surface-variant/50">Income (Month)</p>
+            <p className="text-[9px] font-mono uppercase tracking-widest text-on-surface-variant/50">Income ({selectedPeriodLabel})</p>
             <p className="mt-1 font-mono text-lg text-green-400">{fmtINR(m.monthlyIncomePaise)}</p>
           </div>
           <div className="rounded-lg border border-white/5 bg-[#12121f] p-3">
-            <p className="text-[9px] font-mono uppercase tracking-widest text-on-surface-variant/50">Expense (Month)</p>
+            <p className="text-[9px] font-mono uppercase tracking-widest text-on-surface-variant/50">Expense ({selectedPeriodLabel})</p>
             <p className="mt-1 font-mono text-lg text-red-400">{fmtINR(m.monthlyExpensePaise)}</p>
           </div>
           <div className="rounded-lg border border-white/5 bg-[#12121f] p-3">
-            <p className="text-[9px] font-mono uppercase tracking-widest text-on-surface-variant/50">Savings Rate</p>
+            <p className="text-[9px] font-mono uppercase tracking-widest text-on-surface-variant/50">Savings Rate ({selectedPeriodLabel})</p>
             <p className="mt-1 font-mono text-lg text-on-surface">{m.savingsRatePercent || 0}%</p>
           </div>
           <div className="rounded-lg border border-white/5 bg-[#12121f] p-3">
@@ -544,18 +645,18 @@ export default function DashboardPage() {
           valueColor="text-white"
         />
         <DashMetric
-          label="Total Income (Month)"
+          label={`Total Income (${selectedPeriodLabel})`}
           value={fmtINR(m.monthlyIncomePaise)}
-          subtitle="Current month"
+          subtitle={selectedPeriodLabel}
           icon="trending_up"
           valueColor="text-green-400"
           iconColor="text-green-400"
           gradient="bg-green-500/10"
         />
         <DashMetric
-          label="Total Expenses (Month)"
+          label={`Total Expenses (${selectedPeriodLabel})`}
           value={fmtINR(m.monthlyExpensePaise)}
-          subtitle="Current month"
+          subtitle={selectedPeriodLabel}
           icon="trending_down"
           valueColor="text-red-400"
           iconColor="text-red-400"
@@ -582,9 +683,9 @@ export default function DashboardPage() {
           gradient="bg-blue-500/10"
         />
         <DashMetric
-          label="Savings Rate"
+          label={`Savings Rate (${selectedPeriodLabel})`}
           value={`${m.savingsRatePercent || 0}%`}
-          subtitle="Income – Expenses"
+          subtitle={`Income – Expenses in ${selectedPeriodLabel}`}
           icon="speed"
           valueColor={parseFloat(m.savingsRatePercent || 0) > 30 ? "text-green-400" : "text-white"}
           iconColor={parseFloat(m.savingsRatePercent || 0) > 30 ? "text-green-400" : "text-white"}
@@ -888,13 +989,13 @@ export default function DashboardPage() {
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <span className="material-symbols-outlined text-[#C9A84C] text-[20px]">insights</span>
-            <h2 className="font-headline text-xl text-on-surface">Monthly Contribution Trend</h2>
+            <h2 className="font-headline text-xl text-on-surface">Contribution Trend — {selectedPeriodLabel}</h2>
           </div>
-          <p className="text-on-surface-variant/50 text-xs font-mono uppercase tracking-widest">Last 6 months</p>
+          <p className="text-on-surface-variant/50 text-xs font-mono uppercase tracking-widest">Selected range</p>
         </div>
 
         <p className="mb-4 text-[10px] font-mono uppercase tracking-widest text-on-surface-variant/45">
-          Source: posted investment transactions only
+          Source: posted investment transactions in the selected range
         </p>
 
         <div className="grid grid-cols-6 gap-3 items-end min-h-[120px]">
@@ -926,11 +1027,11 @@ export default function DashboardPage() {
           <div className="flex items-center justify-between mb-1">
             <div className="flex items-center gap-2">
               <span className="material-symbols-outlined text-tertiary text-[20px]">bar_chart</span>
-              <h2 className="font-headline text-xl text-on-surface">Cash Flow — Last 6 Months</h2>
+                <h2 className="font-headline text-xl text-on-surface">Cash Flow — {selectedPeriodLabel}</h2>
             </div>
           </div>
           <div className="flex items-center justify-between mb-6">
-            <p className="text-on-surface-variant/40 text-xs font-mono">Income vs Expenses by month</p>
+              <p className="text-on-surface-variant/40 text-xs font-mono">Income vs Expenses in the selected range</p>
             <div className="flex items-center gap-4 border border-outline-variant/10 bg-surface-container-low px-3 py-1.5 rounded-lg">
               <div className="flex items-center gap-1.5">
                 <div className="w-1.5 h-1.5 rounded-full bg-green-400"></div>
@@ -965,10 +1066,10 @@ export default function DashboardPage() {
             </div>
             <p className="text-red-400/80 font-mono text-xs">{fmtINR(totalMonthlyExpense * 100)}</p>
           </div>
-          <p className="text-on-surface-variant/40 text-xs font-mono mb-6">Category-wise spending this month</p>
+          <p className="text-on-surface-variant/40 text-xs font-mono mb-6">Category-wise spending in {selectedPeriodLabel}</p>
 
           <div className="flex items-center justify-center min-h-[260px]">
-            <CategoryDonut breakdown={expenseBreakdown} totalAmount={totalMonthlyExpense} type="expense" emptyMessage="Add expenses to see breakdown" />
+            <CategoryDonut breakdown={expenseBreakdown} totalAmount={totalMonthlyExpense} type="expense" emptyMessage="Add expenses to see breakdown" periodLabel={selectedPeriodLabel} />
           </div>
         </div>
 
@@ -998,7 +1099,7 @@ export default function DashboardPage() {
             <div>
               <p className="text-on-surface text-sm leading-relaxed">
                 {(m.monthlyIncomePaise > 0 || m.monthlyExpensePaise > 0)
-                  ? `This month you've earned ${fmtINR(m.monthlyIncomePaise)} and spent ${fmtINR(m.monthlyExpensePaise)}. Your savings rate is ${m.savingsRatePercent || 0}%. ${parseFloat(m.savingsRatePercent || 0) >= 30 ? "Great job maintaining a healthy savings rate!" : "Consider reducing discretionary spending to boost your savings."}`
+                  ? `In ${selectedPeriodLabel.toLowerCase()}, you've earned ${fmtINR(m.monthlyIncomePaise)} and spent ${fmtINR(m.monthlyExpensePaise)}. Your savings rate is ${m.savingsRatePercent || 0}%. ${parseFloat(m.savingsRatePercent || 0) >= 30 ? "Great job maintaining a healthy savings rate!" : "Consider reducing discretionary spending to boost your savings."}`
                   : "Add transactions to unlock personalised insights and AI-powered spending analysis."
                 }
               </p>
@@ -1019,10 +1120,10 @@ export default function DashboardPage() {
             </div>
             <p className="text-green-400/80 font-mono text-xs">+{fmtINR(totalMonthlyIncome * 100)}</p>
           </div>
-          <p className="text-on-surface-variant/40 text-xs font-mono mb-6">Sources of revenue this month</p>
+          <p className="text-on-surface-variant/40 text-xs font-mono mb-6">Sources of revenue in {selectedPeriodLabel}</p>
 
           <div className="flex items-center justify-center min-h-[260px]">
-            <CategoryDonut breakdown={incomeBreakdown} totalAmount={totalMonthlyIncome} type="income" emptyMessage="Add income transactions" />
+            <CategoryDonut breakdown={incomeBreakdown} totalAmount={totalMonthlyIncome} type="income" emptyMessage="Add income transactions" periodLabel={selectedPeriodLabel} />
           </div>
         </div>
       </section>

@@ -1,22 +1,37 @@
+import { z } from "zod";
 import { prisma } from "../config/prisma.js";
 
-export const getDashboardSummary = async (userId) => {
+const dashboardRangeSchema = z.enum([
+  "thisMonth",
+  "lastMonth",
+  "last30Days",
+  "last3Months",
+  "lastYear",
+  "thisYear",
+  "allTime"
+]).default("thisMonth");
+
+export const getDashboardSummary = async (userId, rangeKey) => {
   const now = new Date();
   const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 6, 1);
+  const selectedRangeKey = dashboardRangeSchema.parse(rangeKey);
+  const selectedRange = resolveDashboardRange(selectedRangeKey, now);
 
-  // Fetch all data in parallel
-  const [accounts, monthlyTransactions, allTransactionsLast6M, stockTrades, mutualFunds, recurringExpenses, sipPlans, sipExecutions] = await Promise.all([
+  const transactionWhere = {
+    userId,
+    ...(selectedRange.start
+      ? { date: { gte: selectedRange.start, lt: selectedRange.endExclusive } }
+      : { date: { lt: selectedRange.endExclusive } })
+  };
+
+  // Fetch data for the selected range plus the current snapshot items.
+  const [accounts, selectedTransactions, stockTrades, mutualFunds, recurringExpenses, sipPlans, sipExecutions] = await Promise.all([
     prisma.account.findMany({
       where: { userId },
       select: { id: true, type: true, balancePaise: true, name: true }
     }),
     prisma.transaction.findMany({
-      where: { userId, date: { gte: currentMonthStart } },
-      include: { category: true }
-    }),
-    prisma.transaction.findMany({
-      where: { userId, date: { gte: sixMonthsAgo } },
+      where: transactionWhere,
       include: { category: true }
     }),
     prisma.stockTrade.findMany({
@@ -57,21 +72,21 @@ export const getDashboardSummary = async (userId) => {
     .filter(a => a.type === "INVESTMENT")
     .reduce((sum, a) => sum + a.balancePaise, 0);
 
-  // Calculate monthly metrics
-  const monthlyIncomePaise = monthlyTransactions
+  // Calculate metrics for the selected range.
+  const periodIncomePaise = selectedTransactions
     .filter(tx => tx.type === "INCOME")
     .reduce((sum, tx) => sum + tx.amountPaise, 0);
 
-  const monthlyExpensePaise = monthlyTransactions
+  const periodExpensePaise = selectedTransactions
     .filter(tx => tx.type === "EXPENSE" || tx.type === "INVESTMENT")
     .reduce((sum, tx) => sum + tx.amountPaise, 0);
 
-  const monthlyInvestmentPaise = monthlyTransactions
+  const periodInvestmentPaise = selectedTransactions
     .filter(tx => tx.type === "INVESTMENT")
     .reduce((sum, tx) => sum + tx.amountPaise, 0);
 
-  const savingsRatePercent = monthlyIncomePaise > 0
-    ? ((monthlyIncomePaise - monthlyExpensePaise) / monthlyIncomePaise) * 100
+  const savingsRatePercent = periodIncomePaise > 0
+    ? ((periodIncomePaise - periodExpensePaise) / periodIncomePaise) * 100
     : 0;
 
   // Calculate portfolio value from MF (units * navAtBuy as proxy for current value)
@@ -98,20 +113,20 @@ export const getDashboardSummary = async (userId) => {
     .reduce((sum, trade) => sum + (trade.netPnlPaise || 0), 0);
   const unrealizedPnlPaise = estimatedUnrealized.unrealizedPnlPaise;
 
-  // Get last 6 months cash flow data (grouped by month)
-  const cashFlow = calculateCashFlowByMonth(allTransactionsLast6M);
+  // Get cash flow data for the selected range.
+  const cashFlow = calculateCashFlowByPeriod(selectedTransactions, selectedRange);
 
-  // Get expense breakdown by category (current month)
+  // Get expense breakdown by category for the selected range.
   const expenseBreakdown = calculateCategoryBreakdown(
-    monthlyTransactions.filter(tx => tx.type === "EXPENSE" || tx.type === "INVESTMENT")
+    selectedTransactions.filter(tx => tx.type === "EXPENSE" || tx.type === "INVESTMENT")
   );
 
   const incomeBreakdown = calculateCategoryBreakdown(
-    monthlyTransactions.filter(tx => tx.type === "INCOME")
+    selectedTransactions.filter(tx => tx.type === "INCOME")
   );
 
-  const totalIncomeCount = allTransactionsLast6M.filter(tx => tx.type === "INCOME").length;
-  const totalExpenseCount = allTransactionsLast6M.filter(tx => tx.type === "EXPENSE" || tx.type === "INVESTMENT").length;
+  const totalIncomeCount = selectedTransactions.filter(tx => tx.type === "INCOME").length;
+  const totalExpenseCount = selectedTransactions.filter(tx => tx.type === "EXPENSE" || tx.type === "INVESTMENT").length;
 
   // Get holdings for table
   const holdings = mutualFunds.map(mf => ({
@@ -185,7 +200,7 @@ export const getDashboardSummary = async (userId) => {
     .reduce((sum, item) => sum + item.amountPaise, 0);
 
   const monthlyContributionTrend = buildMonthlyContributionTrend(
-    allTransactionsLast6M.filter((tx) => tx.type === "INVESTMENT")
+    selectedTransactions.filter((tx) => tx.type === "INVESTMENT")
   );
 
   const sipActivityThisMonth = sipExecutions.map((execution) => ({
@@ -213,7 +228,7 @@ export const getDashboardSummary = async (userId) => {
     { total: 0, paid: 0, skipped: 0, snoozed: 0, amountPaise: 0, paidAmountPaise: 0 }
   );
 
-  const investmentTransactionsThisMonth = monthlyTransactions
+  const investmentTransactionsThisMonth = selectedTransactions
     .filter((tx) => tx.type === "INVESTMENT")
     .map((tx) => ({
       id: tx.id,
@@ -257,11 +272,17 @@ export const getDashboardSummary = async (userId) => {
   };
 
   return {
+    selectedPeriod: {
+      key: selectedRangeKey,
+      label: selectedRange.label,
+      start: selectedRange.start ? selectedRange.start.toISOString() : null,
+      end: selectedRange.endExclusive.toISOString()
+    },
     metrics: {
       netWorthPaise,
-      monthlyIncomePaise,
-      monthlyExpensePaise,
-      monthlyInvestmentPaise,
+      monthlyIncomePaise: periodIncomePaise,
+      monthlyExpensePaise: periodExpensePaise,
+      monthlyInvestmentPaise: periodInvestmentPaise,
       portfolioValuePaise,
       bankCashPaise,
       savingsRatePercent: savingsRatePercent.toFixed(1),
@@ -290,33 +311,113 @@ export const getDashboardSummary = async (userId) => {
   };
 };
 
-// Helper: Group transactions by month for cash flow chart
-function calculateCashFlowByMonth(transactions) {
-  const months = [];
-  for (let i = 5; i >= 0; i--) {
-    const date = new Date();
-    date.setMonth(date.getMonth() - i);
-    months.push({
-      month: date.toLocaleString("en-US", { month: "short" }),
-      monthNum: date.getMonth(),
-      year: date.getFullYear()
+function resolveDashboardRange(rangeKey, now) {
+  const startOfDay = (date) => {
+    const clone = new Date(date);
+    clone.setHours(0, 0, 0, 0);
+    return clone;
+  };
+
+  const startOfMonth = (date) => new Date(date.getFullYear(), date.getMonth(), 1);
+  const startOfYear = (date) => new Date(date.getFullYear(), 0, 1);
+  const addMonths = (date, amount) => new Date(date.getFullYear(), date.getMonth() + amount, 1);
+
+  switch (rangeKey) {
+    case "lastMonth": {
+      const start = addMonths(startOfMonth(now), -1);
+      const endExclusive = startOfMonth(now);
+      return { key: rangeKey, label: "Last Month", start, endExclusive };
+    }
+    case "last30Days": {
+      const endExclusive = now;
+      const start = startOfDay(new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000));
+      return { key: rangeKey, label: "Last 30 Days", start, endExclusive };
+    }
+    case "last3Months": {
+      const start = addMonths(startOfMonth(now), -3);
+      const endExclusive = startOfMonth(now);
+      return { key: rangeKey, label: "Last 3 Months", start, endExclusive };
+    }
+    case "lastYear": {
+      const start = new Date(now.getFullYear() - 1, 0, 1);
+      const endExclusive = startOfYear(now);
+      return { key: rangeKey, label: "Last Year", start, endExclusive };
+    }
+    case "thisYear": {
+      const start = startOfYear(now);
+      const endExclusive = now;
+      return { key: rangeKey, label: "This Year", start, endExclusive };
+    }
+    case "allTime": {
+      return { key: rangeKey, label: "All Time", start: null, endExclusive: now };
+    }
+    case "thisMonth":
+    default: {
+      const start = startOfMonth(now);
+      const endExclusive = now;
+      return { key: "thisMonth", label: "This Month", start, endExclusive };
+    }
+  }
+}
+
+function calculateCashFlowByPeriod(transactions, range) {
+  if (!transactions.length) return [];
+
+  const rangeStart = range.start ? new Date(range.start) : new Date(Math.min(...transactions.map((tx) => tx.date.getTime())));
+  const rangeEnd = new Date(range.endExclusive);
+  const rangeLengthDays = Math.max(1, Math.ceil((rangeEnd - rangeStart) / (24 * 60 * 60 * 1000)));
+  const useDailyBuckets = rangeLengthDays <= 45;
+
+  if (useDailyBuckets) {
+    const start = new Date(rangeStart);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(rangeEnd);
+    end.setHours(0, 0, 0, 0);
+    const buckets = [];
+
+    for (let cursor = new Date(start); cursor <= end; cursor.setDate(cursor.getDate() + 1)) {
+      buckets.push(new Date(cursor));
+    }
+
+    return buckets.map((date) => {
+      const nextDay = new Date(date);
+      nextDay.setDate(nextDay.getDate() + 1);
+      const income = transactions
+        .filter((tx) => tx.type === "INCOME" && tx.date >= date && tx.date < nextDay)
+        .reduce((sum, tx) => sum + tx.amountPaise, 0);
+      const expense = transactions
+        .filter((tx) => (tx.type === "EXPENSE" || tx.type === "INVESTMENT") && tx.date >= date && tx.date < nextDay)
+        .reduce((sum, tx) => sum + tx.amountPaise, 0);
+
+      return {
+        month: date.toLocaleDateString("en-US", { month: "short", day: "2-digit" }),
+        income: income / 100,
+        expense: expense / 100,
+        savings: (income - expense) / 100
+      };
     });
   }
 
-  return months.map(m => {
-    const monthStart = new Date(m.year, m.monthNum, 1);
-    const monthEnd = new Date(m.year, m.monthNum + 1, 1);
+  const start = new Date(rangeStart.getFullYear(), rangeStart.getMonth(), 1);
+  const end = new Date(rangeEnd.getFullYear(), rangeEnd.getMonth(), 1);
+  const buckets = [];
 
+  for (let cursor = new Date(start); cursor <= end; cursor.setMonth(cursor.getMonth() + 1)) {
+    buckets.push(new Date(cursor));
+  }
+
+  return buckets.map((date) => {
+    const monthStart = new Date(date.getFullYear(), date.getMonth(), 1);
+    const monthEnd = new Date(date.getFullYear(), date.getMonth() + 1, 1);
     const income = transactions
-      .filter(tx => tx.type === "INCOME" && tx.date >= monthStart && tx.date < monthEnd)
+      .filter((tx) => tx.type === "INCOME" && tx.date >= monthStart && tx.date < monthEnd)
       .reduce((sum, tx) => sum + tx.amountPaise, 0);
-
     const expense = transactions
-      .filter(tx => (tx.type === "EXPENSE" || tx.type === "INVESTMENT") && tx.date >= monthStart && tx.date < monthEnd)
+      .filter((tx) => (tx.type === "EXPENSE" || tx.type === "INVESTMENT") && tx.date >= monthStart && tx.date < monthEnd)
       .reduce((sum, tx) => sum + tx.amountPaise, 0);
 
     return {
-      month: m.month,
+      month: date.toLocaleDateString("en-US", { month: "short", year: "2-digit" }),
       income: income / 100,
       expense: expense / 100,
       savings: (income - expense) / 100
@@ -349,21 +450,20 @@ function calculateCategoryBreakdown(transactions) {
 }
 
 function buildMonthlyContributionTrend(transactions) {
-  const months = [];
-  for (let i = 5; i >= 0; i--) {
-    const date = new Date();
-    date.setMonth(date.getMonth() - i);
-    months.push({
-      key: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`,
-      month: date.toLocaleString("en-US", { month: "short" }),
-      year: date.getFullYear(),
-      monthNum: date.getMonth()
-    });
+  if (!transactions.length) return [];
+
+  const ordered = [...transactions].sort((a, b) => a.date - b.date);
+  const start = new Date(ordered[0].date.getFullYear(), ordered[0].date.getMonth(), 1);
+  const end = new Date(ordered[ordered.length - 1].date.getFullYear(), ordered[ordered.length - 1].date.getMonth(), 1);
+  const monthKeys = [];
+
+  for (let cursor = new Date(start); cursor <= end; cursor.setMonth(cursor.getMonth() + 1)) {
+    monthKeys.push(`${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, "0")}`);
   }
 
-  const totalByMonth = new Map(months.map((m) => [m.key, 0]));
+  const totalByMonth = new Map(monthKeys.map((key) => [key, 0]));
 
-  transactions.forEach((transaction) => {
+  ordered.forEach((transaction) => {
     const date = new Date(transaction.date);
     const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
     if (totalByMonth.has(key)) {
@@ -371,11 +471,14 @@ function buildMonthlyContributionTrend(transactions) {
     }
   });
 
-  return months.map((month) => ({
-    month: month.month,
-    amountPaise: totalByMonth.get(month.key) || 0,
-    amount: (totalByMonth.get(month.key) || 0) / 100
-  }));
+  return monthKeys.map((key) => {
+    const [year, month] = key.split("-").map(Number);
+    return {
+      month: new Date(year, month - 1, 1).toLocaleString("en-US", { month: "short", year: "2-digit" }),
+      amountPaise: totalByMonth.get(key) || 0,
+      amount: (totalByMonth.get(key) || 0) / 100
+    };
+  });
 }
 
 function calculateEstimatedUnrealizedStockPnl(stockTrades) {

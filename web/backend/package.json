@@ -11,6 +11,7 @@
     "prisma:deploy": "prisma migrate deploy",
     "prisma:studio": "prisma studio",
     "seed:dashboard": "node seed-dashboard.js",
+    "test:e2e:smoke": "node scripts/e2e-smoke.mjs",
     "test": "vitest run",
     "lint": "node -e \"console.log('No lint config yet')\""
   },
